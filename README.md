@@ -12,7 +12,7 @@ Written in Python using ([FastAPI](https://fastapi.tiangolo.com)).
 4. De-activate environment  : `deactivate`
 
 ## Dependencies :
-1. Install dependencies : `pip install -r requirements.txt`
+1. Install dependencies : `pip install -r requirements.txt` MacOS `npm install "fastapi[standard]"` Windows
 
 2. Updating dependencies : `pip freeze > requirements.txt`
 
