@@ -7,7 +7,7 @@ Written in Python using ([FastAPI](https://fastapi.tiangolo.com)).
 
 2. Create a new environment : `python -m venv .venv`
 
-3. Activate environment : `source .venv/bin/activate`
+3. Activate environment : `source .venv/bin/activate` on MacOS `.venv\Scripts\activate` on Windows
 
 4. De-activate environment  : `deactivate`
 
