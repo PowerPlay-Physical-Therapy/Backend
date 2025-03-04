@@ -1,16 +1,12 @@
 from typing import Union
 from fastapi import FastAPI
+from app.routers import patients
 
 app = FastAPI()
+
+app.include_router(patients.router)
 
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    print(f"item_id: {item_id}")
-    print(f"q: {q}")
-    return {"item_id": item_id, "q": q}
+    return "Welcome to the Backend for PowerPlay: Physical Therapy!!"
