@@ -7,3 +7,5 @@
 */__pycache__
 
 *.pyc
+app/models/__pycache__/
+app/routers/__pycache__/
