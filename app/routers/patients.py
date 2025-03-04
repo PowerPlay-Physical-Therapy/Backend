@@ -17,7 +17,7 @@ def create_new_patient(user: Patient):
 
         database_response = collection.insert_one(user_dict)
         print(f"\n\nNew User Added With ID : {database_response.inserted_id}\n\n")
-        return str(database_response.inserted_id)
+        return database_response.inserted_id
 
     except PyMongoError as e:
         print(f"Database Insertion Error: {e}")
@@ -28,3 +28,12 @@ def create_new_patient(user: Patient):
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
+@router.get("/get_patient/")
+def get_patient_by_id(patient_id: str):
+    collection_response = collection.find_one({"_id": patient_id})
+    if collection_response:
+        patient = collection_response
+        print(f"\n\nPatient Found: {patient}\n\n")
+        return patient
+    else:
+        raise HTTPException(status_code=404, detail="Patient not found")
