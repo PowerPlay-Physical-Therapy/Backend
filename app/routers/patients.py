@@ -16,7 +16,7 @@ def create_new_patient(user: Patient):
         user_dict["assigned_routines"] = []
 
         database_response = collection.insert_one(user_dict)
-        print(f"\n\nNew User Added With ID : {database_response.inserted_id}\n\n")
+        print(f"\n\nNew Patient Added With ID : {database_response.inserted_id}\n\n")
         return database_response.inserted_id
 
     except PyMongoError as e:
