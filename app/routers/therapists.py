@@ -1,5 +1,5 @@
 from fastapi import HTTPException, APIRouter
-from database import get_database
+from app.database import get_database
 from app.models.therapists import Therapist
 from pymongo.errors import PyMongoError
 
