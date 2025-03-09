@@ -2,6 +2,7 @@ from fastapi import HTTPException, APIRouter
 from app.database import get_database
 from app.models.patients import Patient
 from pymongo.errors import PyMongoError
+from bson import ObjectId
 
 collection = get_database()["Patients"]
 
@@ -37,3 +38,23 @@ def get_patient_by_id(patient_id: str):
         return patient
     else:
         raise HTTPException(status_code=404, detail="Patient not found")
+    
+@router.put("/update_patient/")
+def update_patient_by_id(patient_username: str, user: Patient):
+    try:
+        result = collection.find_one({"username": patient_username})
+        if result:
+            user_dict = user.model_dump(by_alias=True, exclude=["id"])
+            updated_item = collection.update_one(
+                {"username": patient_username},
+                {"$set": {"username" : user_dict["username"]}}
+            )
+            if updated_item.modified_count == 1:
+                return {"message": "Item updated successfully!"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to update item")
+        else:
+            # Item not found
+            raise HTTPException(status_code=404, detail="Item not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
