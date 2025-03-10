@@ -29,7 +29,7 @@ def create_new_patient(user: Patient):
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
-@router.get("/get_patient/{therapist_username}")
+@router.get("/get_patient/")
 def get_patient_by_id(patient_id: str):
     collection_response = collection.find_one({"_id": patient_id})
     if collection_response:
@@ -39,7 +39,7 @@ def get_patient_by_id(patient_id: str):
     else:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-@router.put("/update_patient/")
+@router.put("/update_patient/{patient_username}")
 def update_patient_by_id(patient_username: str, user: Patient):
     try:
         result = collection.find_one({"username": patient_username})
