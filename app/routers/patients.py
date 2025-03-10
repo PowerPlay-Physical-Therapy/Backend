@@ -29,7 +29,7 @@ def create_new_patient(user: Patient):
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
-@router.get("/get_patient/")
+@router.get("/get_patient/{therapist_username}")
 def get_patient_by_id(patient_id: str):
     collection_response = collection.find_one({"_id": patient_id})
     if collection_response:
