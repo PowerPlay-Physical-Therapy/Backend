@@ -65,8 +65,12 @@ def get_exercise_by_id(exercise_id: str):
 @router.get("/get_routine/{routine_id}")
 def get_routine_by_id(routine_id: str):
     routine = routineCollection.find_one({"_id": ObjectId(routine_id)})
-    routine["_id"] = str(routine["_id"])
     if routine:
+        routine["_id"] = str(routine["_id"])
+
+        exercise_ids = [str(exercise["_id"]) for exercise in routine.get("exercises", [])]
+        exercises = exerciseCollection.find({"_id": {"$in": [ObjectId(id) for id in exercise_ids]}})
+        routine["exercises"] = list(exercises)
         print(f"\n\nRoutine Found: {routine}\n\n")
         return routine
     else:

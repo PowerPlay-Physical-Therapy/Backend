@@ -16,7 +16,7 @@ class Exercises(BaseModel):
     sets: int
     frequency: int
     description: str
-    thumbnail_ur: str
+    thumbnail_url: str
     video_url: str
     title: str
     category: str
