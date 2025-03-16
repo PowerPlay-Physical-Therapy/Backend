@@ -5,6 +5,7 @@ from pymongo.errors import PyMongoError
 from bson import ObjectId
 
 collection = get_database()["Patients"]
+exerciseCollection = get_database()["Exercises"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
 
@@ -58,3 +59,17 @@ def update_patient_by_id(patient_username: str, user: Patient):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+    
+
+@router.get("/get_exercises/{exercise_id}")
+def get_exercises_by_id(exercise_id: str):
+    exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
+    print(f"\n\nExercise Found: {exercise}\n\n")
+
+    # Convert the ObjectId to a string
+    exercise["_id"] = str(exercise["_id"])
+    if exercise is not None:
+        return exercise
+    else:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    

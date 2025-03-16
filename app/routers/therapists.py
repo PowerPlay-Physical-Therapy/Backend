@@ -61,3 +61,4 @@ def update_patient_by_id(therapist_username: str, user: Therapist):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+    
