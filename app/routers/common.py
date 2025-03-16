@@ -59,3 +59,34 @@ def get_exercise_by_id(exercise_id: str):
         return exercise
     else:
         raise HTTPException(status_code=404, detail="Exercise not found")
+
+
+@router.get("/get_patient_routine/")
+def get_patient_routine_by_id(routine_id: str):
+    collection_response = routineCollection.find_one({"_id": ObjectId(routine_id)})
+    if collection_response:
+        routine = collection_response
+        print(f"\n\nRoutine Found: {routine}\n\n")
+        return routine
+    else:
+        raise HTTPException(status_code=404, detail="Routine not found")
+    
+
+@router.put("/add_routine/{patient_id}")
+def add_routine_to_patient(patient_id: str, routine_id: str):
+    try:
+        result = routineCollection.find_one({"id": patient_id})
+        if result:
+            updated_item = collection.update_one(
+                {"_id": patient_id},
+                {"$push": {"assigned_routines" : routine_id}}
+            )
+            if updated_item.modified_count == 1:
+                return {"message": "Routine updated successfully!"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to add routine")
+        else:
+            # Item not found
+            raise HTTPException(status_code=404, detail="Patient not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
