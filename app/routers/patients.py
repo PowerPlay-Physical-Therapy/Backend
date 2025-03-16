@@ -4,8 +4,9 @@ from app.models.patients import Patient, Routine
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 
-collection = get_database()["Patients"]
+patientCollection = get_database()["Patients"]
 exerciseCollection = get_database()["Exercises"]
+routineCollection = get_database()["Routines"]
 routine_collection = get_database()["Routine"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
@@ -18,7 +19,7 @@ def create_new_patient(user: Patient):
         user_dict["connections"] = []
         user_dict["assigned_routines"] = []
 
-        database_response = collection.insert_one(user_dict)
+        database_response = patientCollection.insert_one(user_dict)
         print(f"\n\nNew Patient Added With ID : {database_response.inserted_id}\n\n")
         return database_response.inserted_id
 
@@ -33,7 +34,7 @@ def create_new_patient(user: Patient):
 
 @router.get("/get_patient/")
 def get_patient_by_id(patient_id: str):
-    collection_response = collection.find_one({"_id": patient_id})
+    collection_response = patientCollection.find_one({"_id": patient_id})
     if collection_response:
         patient = collection_response
         print(f"\n\nPatient Found: {patient}\n\n")
@@ -44,10 +45,10 @@ def get_patient_by_id(patient_id: str):
 @router.put("/update_patient/{patient_username}")
 def update_patient_by_id(patient_username: str, user: Patient):
     try:
-        result = collection.find_one({"username": patient_username})
+        result = patientCollection.find_one({"username": patient_username})
         if result:
             user_dict = user.model_dump(by_alias=True, exclude=["id"])
-            updated_item = collection.update_one(
+            updated_item = patientCollection.update_one(
                 {"username": patient_username},
                 {"$set": {"username" : user_dict["username"]}}
             )
@@ -62,15 +63,17 @@ def update_patient_by_id(patient_username: str, user: Patient):
         raise HTTPException(status_code=500, detail="Database update failed")
     
 
-@router.get("/get_exercises/{exercise_id}")
-def get_exercises_by_id(exercise_id: str):
-    exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
-    print(f"\n\nExercise Found: {exercise}\n\n")
+    
 
-    # Convert the ObjectId to a string
-    exercise["_id"] = str(exercise["_id"])
-    if exercise is not None:
-        return exercise
+
+
+@router.get("/get_patient_routine/")
+def get_patient_routine_by_id(routine_id: str):
+    collection_response = routine_collection.find_one({"_id": ObjectId(routine_id)})
+    if collection_response:
+        routine = collection_response
+        print(f"\n\nRoutine Found: {routine}\n\n")
+        return routine
     else:
         raise HTTPException(status_code=404, detail="Exercise not found")
     
