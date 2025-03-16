@@ -1,13 +1,14 @@
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Union
 from fastapi import FastAPI
-from app.routers import patients, therapists
+from app.routers import common, patients, therapists
 
 
 app = FastAPI()
 
 app.include_router(patients.router)
 app.include_router(therapists.router)
+app.include_router(common.router)
 
 app.add_middleware(
     CORSMiddleware,
