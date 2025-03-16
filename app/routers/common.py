@@ -4,6 +4,7 @@ from pymongo.errors import PyMongoError
 from app.database import get_database
 from bson import ObjectId
 
+patientCollection = get_database()["Patients"]
 exerciseCollection = get_database()["Exercises"]
 routineCollection = get_database()["Routines"]
 
@@ -18,7 +19,7 @@ def get_explore_collection():
         exercise["_id"] = str(exercise["_id"])
         exercise_list.append(exercise)
 
-    def modfiy_exercises(exercise_list):
+    def modify_exercises(exercise_list):
         transformed = defaultdict(lambda: defaultdict(list))
         for exercise in exercise_list:
             category = exercise["category"]
@@ -45,7 +46,7 @@ def get_explore_collection():
             })
         return result
 
-    return modfiy_exercises(exercise_list)
+    return modify_exercises(exercise_list)
 
 
 @router.get("/get_exercise/{exercise_id}")
@@ -60,27 +61,29 @@ def get_exercise_by_id(exercise_id: str):
     else:
         raise HTTPException(status_code=404, detail="Exercise not found")
 
-
-@router.get("/get_patient_routine/")
-def get_patient_routine_by_id(routine_id: str):
-    collection_response = routineCollection.find_one({"_id": ObjectId(routine_id)})
-    if collection_response:
-        routine = collection_response
+# fetch routines to home page
+@router.get("/get_routine/{routine_id}")
+def get_routine_by_id(routine_id: str):
+    routine = routineCollection.find_one({"_id": ObjectId(routine_id)})
+    routine["_id"] = str(routine["_id"])
+    if routine:
         print(f"\n\nRoutine Found: {routine}\n\n")
         return routine
     else:
         raise HTTPException(status_code=404, detail="Routine not found")
     
-
-@router.put("/add_routine/{patient_id}")
+# adding assigned routines to patients
+@router.put("/add_routine/{patient_id}/{routine_id}")
 def add_routine_to_patient(patient_id: str, routine_id: str):
     try:
-        result = routineCollection.find_one({"id": patient_id})
-        if result:
-            updated_item = collection.update_one(
-                {"_id": patient_id},
-                {"$push": {"assigned_routines" : routine_id}}
+        patient = patientCollection.find_one({"_id": ObjectId(patient_id)})
+
+        if patient:
+            updated_item = patientCollection.update_one(
+                {"_id": ObjectId(patient_id)},
+                {"$addToSet": {"assigned_routines" : ObjectId(routine_id)}}
             )
+
             if updated_item.modified_count == 1:
                 return {"message": "Routine updated successfully!"}
             else:
