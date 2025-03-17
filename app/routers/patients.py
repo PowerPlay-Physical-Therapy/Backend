@@ -30,12 +30,30 @@ def create_new_patient(user: Patient):
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
+# support function
+def convert_object_ids_to_strings(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key == "_id":
+                if isinstance(value, dict) and "$oid" in value:
+                    # Convert MongoDB ObjectId to string
+                    data[key] = value["$oid"]
+                else:
+                    data[key] = str(value)  # Ensure all _id values are strings
+            else:
+                data[key] = convert_object_ids_to_strings(
+                    value)  # Recursively process other fields
+    elif isinstance(data, list):
+        # Recursively process lists
+        return [convert_object_ids_to_strings(item) for item in data]
+    return data
+
 @router.get("/get_patient/")
 def get_patient_by_id(patient_id: str):
     collection_response = patientCollection.find_one({"_id": patient_id})
     if collection_response:
-        patient = collection_response
-        print(f"\n\nPatient Found: {patient}\n\n")
+        patient = convert_object_ids_to_strings(collection_response)
+        # print(f"\n\nPatient Found: {patient}\n\n")
         return patient
     else:
         raise HTTPException(status_code=404, detail="Patient not found")
