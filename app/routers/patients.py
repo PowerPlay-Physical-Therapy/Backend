@@ -3,7 +3,7 @@ from app.database import get_database
 from app.models.patients import Patient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
-from app.routers.common import get_routine_by_id, get_exercise_by_id
+from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
 
 patientCollection = get_database()["Patients"]
 
@@ -61,20 +61,19 @@ def update_patient_by_id(patient_username: str, user: Patient):
         raise HTTPException(status_code=500, detail="Database update failed")
     
 
-# adding assigned routines to patients
-@router.put("/add_explore_routine/{patient_id}/{routine_id}")
-def add_explore_routine(patient_id: str, routine_id: str):
+@router.put("/update_assigned_routines/{patient_id}/{routine_id}")
+def update_assigned_routines(patient_id: str, routine_id: str):
     try:
-        patient = patientCollection.find_one({"_id": ObjectId(patient_id)})
+        patient = patientCollection.find_one({"_id": patient_id})
 
         if patient:
             updated_item = patientCollection.update_one(
-                {"_id": ObjectId(patient_id)},
-                {"$addToSet": {"assigned_routines": ObjectId(routine_id)}}
+                {"_id": patient_id},
+                {"$addToSet": {"assigned_routines": {"_id": ObjectId(routine_id)}}}
             )
 
             if updated_item.modified_count == 1:
-                return {"message": "Routine updated successfully!"}
+                return {"message": "Assign Routine updated successfully!"}
             else:
                 raise HTTPException(
                     status_code=400, detail="Failed to add routine")
@@ -83,6 +82,20 @@ def add_explore_routine(patient_id: str, routine_id: str):
             raise HTTPException(status_code=404, detail="Patient not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
+# adding assigned routines to patients
+@router.post("/add_explore_routine/{patient_id}")
+def add_explore_routine(patient_id:str, routine: dict):
+    try : 
+        routine_id = create_routine(routine).get("routine_id")
+        print(f"\n\nRoutine ID: {routine_id}\n\n")
+        update_assigned_routines(patient_id, routine_id)
+        return {"message": "Routine added successfully!"}
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
 
 @router.get("/get_assigned_routines/{patient_id}")
 def get_assigned_routines(patient_id: str):
@@ -93,7 +106,6 @@ def get_assigned_routines(patient_id: str):
         for routine in routines:
             exercise_ids = [exercise["_id"] for exercise in routine.get("exercises", [])]
             routine["exercises"] = [get_exercise_by_id(exercise_id) for exercise_id in exercise_ids]
-
         return routines
     else:
         raise HTTPException(status_code=404, detail="No Such Patient")
