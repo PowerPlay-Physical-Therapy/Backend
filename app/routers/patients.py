@@ -3,6 +3,7 @@ from app.database import get_database
 from app.models.patients import Patient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
+from app.routers.common import get_routine_by_id, get_exercise_by_id
 
 patientCollection = get_database()["Patients"]
 
@@ -59,3 +60,40 @@ def update_patient_by_id(patient_username: str, user: Patient):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
     
+
+# adding assigned routines to patients
+@router.put("/add_explore_routine/{patient_id}/{routine_id}")
+def add_explore_routine(patient_id: str, routine_id: str):
+    try:
+        patient = patientCollection.find_one({"_id": ObjectId(patient_id)})
+
+        if patient:
+            updated_item = patientCollection.update_one(
+                {"_id": ObjectId(patient_id)},
+                {"$addToSet": {"assigned_routines": ObjectId(routine_id)}}
+            )
+
+            if updated_item.modified_count == 1:
+                return {"message": "Routine updated successfully!"}
+            else:
+                raise HTTPException(
+                    status_code=400, detail="Failed to add routine")
+        else:
+            # Item not found
+            raise HTTPException(status_code=404, detail="Patient not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+@router.get("/get_assigned_routines/{patient_id}")
+def get_assigned_routines(patient_id: str):
+    patient = patientCollection.find_one({"_id": patient_id})
+    if patient:
+        routine_ids = [{"_id": str(routineID["_id"])} for routineID in patient.get("assigned_routines", [])]
+        routines = [get_routine_by_id(routine["_id"]) for routine in routine_ids]
+        for routine in routines:
+            exercise_ids = [exercise["_id"] for exercise in routine.get("exercises", [])]
+            routine["exercises"] = [get_exercise_by_id(exercise_id) for exercise_id in exercise_ids]
+
+        return routines
+    else:
+        raise HTTPException(status_code=404, detail="No Such Patient")
