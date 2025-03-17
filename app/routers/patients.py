@@ -87,6 +87,10 @@ def update_assigned_routines(patient_id: str, routine_id: str):
 @router.post("/add_explore_routine/{patient_id}")
 def add_explore_routine(patient_id:str, routine: dict):
     try : 
+        for exercise in routine.get("exercises", []):
+            if isinstance(exercise["_id"], str):
+                exercise["_id"] = ObjectId(exercise["_id"])
+                
         routine_id = create_routine(routine).get("routine_id")
         print(f"\n\nRoutine ID: {routine_id}\n\n")
         update_assigned_routines(patient_id, routine_id)
