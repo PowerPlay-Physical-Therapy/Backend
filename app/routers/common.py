@@ -53,7 +53,7 @@ def get_explore_collection():
 @router.get("/get_exercise/{exercise_id}")
 def get_exercise_by_id(exercise_id: str):
     exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
-    print(f"\n\nExercise Found: {exercise}\n\n")
+    # print(f"\n\nExercise Found: {exercise}\n\n")
 
     # Convert the ObjectId to a string
     exercise["_id"] = str(exercise["_id"])
@@ -73,7 +73,7 @@ def get_routine_by_id(routine_id: str):
         # exercises = exerciseCollection.find({"_id": {"$in": [ObjectId(id) for id in exercise_ids]}})
         # exercises = [str(exercise["_id"]) for exercise in exercises]
         routine["exercises"] = list(exercise_ids)
-        print(f"\n\nRoutine Found: {routine}\n\n")
+        # print(f"\n\nRoutine Found: {routine}\n\n")
         return routine
     else:
         raise HTTPException(status_code=404, detail="Routine not found")
