@@ -85,3 +85,153 @@ def create_routine(routine: dict):
         return {"message": "Routine created successfully!", "routine_id": str(routine_id)}
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
+@router.post("/connect_patient_therapist/{patient_id}/{therapist_id}")
+def connect_patient_therapist_bidirectional(patient_id: str, therapist_id: str):
+    try:
+        # Check if both patient and therapist exist
+        patient = patientCollection.find_one({"_id": patient_id})
+        therapist = therapistCollection.find_one({"_id": therapist_id})
+        
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+            
+        # Add therapist to patient's connections
+        patient_update = patientCollection.update_one(
+            {"_id": patient_id},
+            {"$addToSet": {"connections": therapist_id}}
+        )
+        
+        # Add patient to therapist's connections
+        therapist_update = therapistCollection.update_one(
+            {"_id": therapist_id},
+            {"$addToSet": {"connections": patient_id}}
+        )
+        
+        if patient_update.modified_count == 1 and therapist_update.modified_count == 1:
+            return {"message": "Bidirectional connection established successfully!"}
+        elif patient_update.modified_count == 0 and therapist_update.modified_count == 0:
+            return {"message": "Bidirectional connection already exists between patient and therapist"}
+        else:
+            # If one update succeeded and the other didn't, we should rollback
+            # Remove the connection from both sides to maintain consistency
+            patientCollection.update_one(
+                {"_id": patient_id},
+                {"$pull": {"connections": therapist_id}}
+            )
+            therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"connections": patient_id}}
+            )
+            raise HTTPException(status_code=500, detail="Failed to establish bidirectional connection properly")
+            
+    except PyMongoError as e:
+        # If there's an error, try to clean up any partial updates
+        try:
+            patientCollection.update_one(
+                {"_id": patient_id},
+                {"$pull": {"connections": therapist_id}}
+            )
+            therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"connections": patient_id}}
+            )
+        except:
+            pass  # If cleanup fails, just let the original error propagate
+        raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+@router.delete("/disconnect_patient_therapist/{patient_id}/{therapist_id}")
+def disconnect_patient_therapist_bidirectional(patient_id: str, therapist_id: str):
+    try:
+        # Check if both patient and therapist exist
+        patient = patientCollection.find_one({"_id": patient_id})
+        therapist = therapistCollection.find_one({"_id": therapist_id})
+        
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+            
+        # Remove therapist from patient's connections
+        patient_update = patientCollection.update_one(
+            {"_id": patient_id},
+            {"$pull": {"connections": therapist_id}}
+        )
+        
+        # Remove patient from therapist's connections
+        therapist_update = therapistCollection.update_one(
+            {"_id": therapist_id},
+            {"$pull": {"connections": patient_id}}
+        )
+        
+        if patient_update.modified_count == 1 and therapist_update.modified_count == 1:
+            return {"message": "Bidirectional connection removed successfully!"}
+        elif patient_update.modified_count == 0 and therapist_update.modified_count == 0:
+            return {"message": "No bidirectional connection existed between patient and therapist"}
+        else:
+            # If one update succeeded and the other didn't, we should try to restore consistency
+            # Add the connection back to both sides to maintain consistency
+            if patient_update.modified_count == 1:
+                patientCollection.update_one(
+                    {"_id": patient_id},
+                    {"$addToSet": {"connections": therapist_id}}
+                )
+            if therapist_update.modified_count == 1:
+                therapistCollection.update_one(
+                    {"_id": therapist_id},
+                    {"$addToSet": {"connections": patient_id}}
+                )
+            raise HTTPException(status_code=500, detail="Failed to remove bidirectional connection properly")
+            
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+@router.get("/get_connections/{user_id}/{user_type}")
+def get_user_connections(user_id: str, user_type: str):
+    try:
+        # Determine which collection to use based on user_type
+        if user_type.lower() == "patient":
+            collection = patientCollection
+            connected_collection = therapistCollection
+            connected_type = "therapist"
+        elif user_type.lower() == "therapist":
+            collection = therapistCollection
+            connected_collection = patientCollection
+            connected_type = "patient"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user type. Must be 'patient' or 'therapist'")
+        
+        # Get the user document
+        user = collection.find_one({"_id": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail=f"{user_type.capitalize()} not found")
+        
+        # Get the connection IDs
+        connection_ids = user.get("connections", [])
+        
+        # Get the full details of each connected user
+        connections = []
+        for connected_id in connection_ids:
+            connected_user = connected_collection.find_one({"_id": connected_id})
+            if connected_user:
+                # Convert ObjectId to string for JSON serialization
+                connected_user["_id"] = str(connected_user["_id"])
+                connections.append(connected_user)
+        
+        return {
+            "user_id": user_id,
+            "user_type": user_type,
+            "connections": connections,
+            "connection_count": len(connections)
+        }
+        
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
