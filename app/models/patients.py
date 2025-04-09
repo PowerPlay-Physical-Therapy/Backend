@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from bson import ObjectId
+from typing import Optional
 
 
 class Patient(BaseModel):
@@ -8,6 +8,7 @@ class Patient(BaseModel):
     firstname: str
     lastname: str
     email: str
+    imageUrl: Optional[str] = None
 
 class Exercises(BaseModel):
     id: str
