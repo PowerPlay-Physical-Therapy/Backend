@@ -1,8 +1,10 @@
 from collections import defaultdict
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, UploadFile, status
 from pymongo.errors import PyMongoError
 from app.database import get_database
 from bson import ObjectId
+from uuid import uuid4
+from loguru import logger
 
 patientCollection = get_database()["Patients"]
 therapistCollection = get_database()["Therapists"]
