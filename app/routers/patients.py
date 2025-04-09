@@ -130,4 +130,15 @@ def get_assigned_routines(patient_id: str):
             routine["exercises"] = [get_exercise_by_id(exercise_id) for exercise_id in exercise_ids]
         return routines
     else:
-        raise HTTPException(status_code=404, detail="No Such Patient")
+        raise HTTPException(status_code=404, detail="No Such Patient")    
+
+
+@router.get("/get_connections/{patient_id}")
+def get_connections(patient_id: str):
+    patient = patientCollection.find_one({"_id": patient_id})
+    if patient:
+        connections = patient.get("connections", [])
+        print(f"\n\nConnections Found: {connections}\n\n")
+        return connections
+    else:
+        raise HTTPException(status_code=404, detail="No Therapist Found for this Patient")
