@@ -162,7 +162,7 @@ def update_patient_by_id(patient_username: str, user: Patient):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
     
-    @router.get("/get_patient_by_email/")
+@router.get("/get_patient_by_email/")
 def get_patient_by_email(email: str):
     try:
         patient = patientCollection.find_one({"email": email})
