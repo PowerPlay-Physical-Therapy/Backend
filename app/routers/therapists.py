@@ -63,7 +63,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             user_dict = user.model_dump(by_alias=True, exclude=["id"])
             update_fields = {
                 "username": user_dict["username"],
-                "image": user_dict.get("image"),
+                "imageUrl": user_dict.get("imageUrl"),
             }
             updated_item = collection.update_one(
                 {"username": therapist_username},
