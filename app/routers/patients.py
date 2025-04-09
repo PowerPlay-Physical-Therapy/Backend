@@ -50,11 +50,18 @@ def convert_object_ids_to_strings(data):
 
 @router.get("/get_patient/")
 def get_patient_by_id(patient_id: str):
-    collection_response = patientCollection.find_one({"_id": patient_id})
-    if collection_response:
-        patient = convert_object_ids_to_strings(collection_response)
-        # print(f"\n\nPatient Found: {patient}\n\n")
-        return patient
+    print("Looking for patient with ID:", patient_id)
+
+    # DEBUG: print one sample patient
+    sample = patientCollection.find_one()
+    print("Sample document from Patients:", sample)
+
+    # Check if the document with matching ID exists
+    patient = patientCollection.find_one({"_id": patient_id})
+    print("Patient query result:", patient)
+
+    if patient:
+        return convert_object_ids_to_strings(patient)
     else:
         raise HTTPException(status_code=404, detail="Patient not found")
     
@@ -131,3 +138,26 @@ def get_assigned_routines(patient_id: str):
         return routines
     else:
         raise HTTPException(status_code=404, detail="No Such Patient")
+    
+@router.put("/update_patient/{patient_username}")
+def update_patient_by_id(patient_username: str, user: Patient):
+    try:
+        result = patientCollection.find_one({"username": patient_username})
+        if result:
+            user_dict = user.model_dump(by_alias=True, exclude=["id"])
+            update_fields = {
+                "username": user_dict["username"],
+                "image": user_dict.get("image"),  # <-- Add this line
+            }
+            updated_item = patientCollection.update_one(
+                {"username": patient_username},
+                {"$set": update_fields}
+            )
+            if updated_item.modified_count == 1:
+                return {"message": "Item updated successfully!"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to update item")
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
