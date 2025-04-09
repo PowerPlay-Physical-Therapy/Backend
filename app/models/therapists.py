@@ -7,4 +7,4 @@ class Therapist(BaseModel):
     firstname: str
     lastname: str
     email: str
-    image: Optional[str] = None
+    imageUrl: Optional[str] = None

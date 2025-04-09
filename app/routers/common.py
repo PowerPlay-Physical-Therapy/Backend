@@ -280,11 +280,3 @@ def get_user_connections(user_id: str, user_type: str):
     except Exception as e:
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
-@router.get("/debug-db-info")
-def debug_db_info():
-    db = get_database()
-    return {
-        "mongo_uri": os.getenv("MONGO_DB_URI"),
-        "collections": db.list_collection_names()
-    }

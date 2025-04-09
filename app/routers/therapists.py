@@ -57,12 +57,23 @@ def get_therapist_by_email(email: str):
 
 @router.put("/update_therapist/{therapist_username}")
 def update_therapist_by_username(therapist_username: str, user: Therapist):
-    user_dict = user.model_dump(by_alias=True, exclude=["id"])
-    result = collection.update_one(
-        {"username": therapist_username},
-        {"$set": user_dict}
-    )
-    if result.modified_count == 1:
-        return {"message": "Therapist updated successfully!"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to update therapist")
+    try:
+        result = collection.find_one({"username": therapist_username})
+        if result:
+            user_dict = user.model_dump(by_alias=True, exclude=["id"])
+            update_fields = {
+                "username": user_dict["username"],
+                "image": user_dict.get("image"),
+            }
+            updated_item = collection.update_one(
+                {"username": therapist_username},
+                {"$set": update_fields}
+            )
+            if updated_item.modified_count == 1:
+                return {"message": "Therapist updated successfully!"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to update item")
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")

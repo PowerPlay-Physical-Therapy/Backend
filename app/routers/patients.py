@@ -161,3 +161,40 @@ def update_patient_by_id(patient_username: str, user: Patient):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+    
+    @router.get("/get_patient_by_email/")
+def get_patient_by_email(email: str):
+    try:
+        patient = patientCollection.find_one({"email": email})
+        if patient:
+            patient["_id"] = str(patient["_id"])
+            return patient
+        else:
+            raise HTTPException(status_code=404, detail="Patient not found with provided email")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+@router.put("/update_patient/{patient_username}")
+def update_patient_by_id(patient_username: str, user: Patient):
+    try:
+        result = patientCollection.find_one({"username": patient_username})
+        if result:
+            user_dict = user.model_dump(by_alias=True, exclude=["id"])
+            update_fields = {
+                "username": user_dict["username"],
+                "image": user_dict.get("image"),
+            }
+            updated_item = patientCollection.update_one(
+                {"username": patient_username},
+                {"$set": update_fields}
+            )
+            if updated_item.modified_count == 1:
+                return {"message": "Item updated successfully!"}
+            else:
+                raise HTTPException(status_code=400, detail="Failed to update item")
+        else:
+            raise HTTPException(status_code=404, detail="Item not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
