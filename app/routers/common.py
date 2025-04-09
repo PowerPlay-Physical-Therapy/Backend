@@ -1,14 +1,19 @@
 from collections import defaultdict
 from fastapi import HTTPException, APIRouter, Request
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pymongo.errors import PyMongoError
 from app.database import get_database
 from bson import ObjectId
 import os
 
+from datetime import datetime, timezone
+
 patientCollection = get_database()["Patients"]
 therapistCollection = get_database()["Therapists"]
 exerciseCollection = get_database()["Exercises"]
 routineCollection = get_database()["Routines"]
+messageCollection = get_database()["Messages"]
 connectionCollection = get_database()["Connections"]
 
 router = APIRouter(tags=["Common"])
@@ -58,14 +63,29 @@ def get_exercise_by_id(exercise_id: str):
         return exercise
     else:
         raise HTTPException(status_code=404, detail="Exercise not found")
+    
 
 @router.get("/get_routine/{routine_id}")
 def get_routine_by_id(routine_id: str):
     routine = routineCollection.find_one({"_id": ObjectId(routine_id)})
+
     if routine:
         routine["_id"] = str(routine["_id"])
-        exercise_ids = [{"_id": str(ex["_id"])} for ex in routine.get("exercises", [])]
-        routine["exercises"] = list(exercise_ids)
+        # Extract exercise ObjectIds
+        exercise_ids = [exercise["_id"]
+                        for exercise in routine.get("exercises", [])]
+
+        # Fetch full exercise documents
+        exercises = list(exerciseCollection.find(
+            {"_id": {"$in": exercise_ids}}))
+
+        # Convert ObjectId to string for each exercise
+        for exercise in exercises:
+            exercise["_id"] = str(exercise["_id"])
+
+        # Attach full exercises to routine
+        routine["exercises"] = exercises
+
         return routine
     else:
         raise HTTPException(status_code=404, detail="Routine not found")
@@ -77,6 +97,51 @@ def create_routine(routine: dict):
         return {"message": "Routine created successfully!", "routine_id": str(routine_id)}
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
+
+def convert_message(doc):
+    doc["_id"] = str(doc["_id"])
+    doc["timestamp"] = doc["timestamp"]
+    return doc
+
+
+@router.get("/messages/{user1}/{user2}")
+def get_messages(user1: str, user2: str):
+    # Query for all messages between user1 and user2
+    cursor = messageCollection.find({
+        "$or": [
+            {"sender_id": user1, "receiver_id": user2},
+            {"sender_id": user2, "receiver_id": user1}
+        ]
+    }).sort("timestamp", 1)
+
+    messages = []
+    for msg in cursor:
+        messages.append(convert_message(msg))
+
+    return JSONResponse(content=jsonable_encoder(messages))
+
+@router.put("/message/{user1}/{user2}")
+async def update_messages(user1: str, user2: str, request: Request):
+    data = await request.json()
+    message = data.get("message")
+    type = data.get("type")
+    tempObj: dict = {
+        "sender_id": user1,
+        "receiver_id": user2,
+        "type": type,
+        "read": False,
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "message": message}
+    
+    try: 
+        message_id = messageCollection.insert_one(tempObj)
+        return {"message": "Message sent successfully", "message_id" : str(message_id.inserted_id)}
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+# @router.websocket("/chat")
+# def chat(websocket):
 
 @router.post("/connect_patient_therapist/{patient_id}/{therapist_id}")
 def connect_patient_therapist_bidirectional(patient_id: str, therapist_id: str, request: Request):

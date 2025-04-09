@@ -116,7 +116,18 @@ def get_assigned_routines(patient_id: str):
             routine["exercises"] = [get_exercise_by_id(exercise_id) for exercise_id in exercise_ids]
         return routines
     else:
-        raise HTTPException(status_code=404, detail="No Such Patient")
+        raise HTTPException(status_code=404, detail="No Such Patient")    
+
+
+@router.get("/get_connections/{patient_id}")
+def get_connections(patient_id: str):
+    patient = patientCollection.find_one({"_id": patient_id})
+    if patient:
+        connections = patient.get("connections", [])
+        print(f"\n\nConnections Found: {connections}\n\n")
+        return connections
+    else:
+        raise HTTPException(status_code=404, detail="No Therapist Found for this Patient")
     
 @router.get("/get_patient_by_email/")
 def get_patient_by_email(email: str):
@@ -154,3 +165,4 @@ def update_patient_by_username(patient_username: str, user: Patient):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
