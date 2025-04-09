@@ -3,10 +3,14 @@ from app.database import get_database
 from app.models.therapists import Therapist
 from pymongo.errors import PyMongoError
 from bson import ObjectId
+from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
+import logging
 
 from dotenv import load_dotenv
 import os
 import boto3 
+
+load_dotenv()
 
 collection = get_database()["Therapists"]
 routineCollection = get_database()["Routines"]
@@ -16,12 +20,15 @@ router = APIRouter(prefix="/therapist", tags=["Therapists"])
 
 
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY_ID")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_REGION = os.getenv("AWS_REGION")
 
 s3_client = boto3.client(
-    "s3"
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+    region_name=S3_REGION
 )
 
 @router.post("/create_therapist", response_model=str, status_code=201)
@@ -80,15 +87,15 @@ def update_patient_by_id(therapist_username: str, user: Therapist):
     
 
 @router.post("/upload_custom_video/")
-def upload_custom_video(exercise_id: str, filename: str):
+def upload_custom_video(exercise_id: str, filename: str, content_type: str = "video/mp4"):
     try:
-        exercise = exerciseCollection.find_one({"id": ObjectId(exercise_id)})
+        exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
         if exercise:
             s3_key = f"custom_videos/{filename}"
 
             presigned_url = s3_client.generate_presigned_url(
                 "put_object",
-                Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key, "ContentType": "video/mp4"},
+                Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key, "ContentType": content_type},
                 ExpiresIn=600
             )
 
@@ -105,3 +112,4 @@ def upload_custom_video(exercise_id: str, filename: str):
             raise HTTPException(status_code=404, detail="Exercise not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
