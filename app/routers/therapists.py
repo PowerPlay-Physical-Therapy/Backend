@@ -1,4 +1,4 @@
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, Body
 from app.database import get_database
 from app.models.therapists import Therapist
 from pymongo.errors import PyMongoError
@@ -86,30 +86,134 @@ def update_patient_by_id(therapist_username: str, user: Therapist):
         raise HTTPException(status_code=500, detail="Database update failed")
     
 
-@router.post("/upload_custom_video/")
-def upload_custom_video(exercise_id: str, filename: str, content_type: str = "video/mp4"):
+# @router.post("/upload_custom_video/")
+# def upload_custom_video(exercise_id: str, filename: str, content_type: str = "video/mp4"):
+#     try:
+#         exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
+#         if exercise:
+#             s3_key = f"custom_videos/{filename}"
+
+#             presigned_url = s3_client.generate_presigned_url(
+#                 "put_object",
+#                 Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key, "ContentType": content_type},
+#                 ExpiresIn=600
+#             )
+
+#             video_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+
+#             exerciseCollection.update_one(
+#                 {"_id": ObjectId(exercise_id)},
+#                 {"$set": {"video_url": video_url}}
+#             )
+#             return {"presigned_url": presigned_url, "video_url": video_url}
+
+#         else:
+#             # Item not found
+#             raise HTTPException(status_code=404, detail="Exercise not found")
+#     except PyMongoError as e:
+#         raise HTTPException(status_code=500, detail="Database update failed")
+
+
+@router.post("/create_exercise")
+def create_exercise(exercise: dict = Body(...)):
     try:
-        exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
-        if exercise:
-            s3_key = f"custom_videos/{filename}"
+        # If _id is provided, convert to ObjectId and update instead
+        if "_id" in exercise and exercise["_id"]:
+            exercise["_id"] = ObjectId(exercise["_id"])
+        
+        inserted = exerciseCollection.insert_one(exercise)
+        return {
+            "message": "Exercise created successfully!",
+            "exercise_id": str(inserted.inserted_id)
+        }
 
-            presigned_url = s3_client.generate_presigned_url(
-                "put_object",
-                Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key, "ContentType": content_type},
-                ExpiresIn=600
-            )
-
-            video_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
-
-            exerciseCollection.update_one(
-                {"_id": ObjectId(exercise_id)},
-                {"$set": {"video_url": video_url}}
-            )
-            return {"presigned_url": presigned_url, "video_url": video_url}
-
-        else:
-            # Item not found
-            raise HTTPException(status_code=404, detail="Exercise not found")
     except PyMongoError as e:
-        raise HTTPException(status_code=500, detail="Database update failed")
+        print(f"Database Insertion Error: {e}")
+        raise HTTPException(status_code=500, detail="Database insertion failed")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
+
+
+@router.post("/add_custom_routine/{therapist_id}")
+def add_custom_routine(therapist_id: str, routine: dict):
+    """
+    Endpoint for therapists to create and save custom routines.
+    """
+    try:
+        # Ensure exercise IDs are in ObjectId format
+        for exercise in routine.get("exercises", []):
+            if isinstance(exercise["_id"], str):
+                exercise["_id"] = ObjectId(exercise["_id"])
+
+
+        # Save routine to database
+        routine["therapist_id"] = ObjectId(therapist_id)  # Link to therapist
+        routine_id = routineCollection.insert_one(routine).inserted_id
+
+
+        return {"message": "Routine added successfully!", "routine_id": str(routine_id)}
+
+
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
+
+
+@router.get("/get_custom_routines/{therapist_id}")
+def get_custom_routines(therapist_id: str):
+    """
+    Fetches all custom routines created by a specific therapist.
+    """
+    try:
+        logging.info(f"Fetching routines for therapist_id: {therapist_id}")
+
+
+        # Fetch therapist's document
+        therapist = therapistCollection.find_one({"_id": therapist_id})
+
+
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+
+
+        # Extract routine IDs
+        routine_ids = [routine["_id"]["$oid"] if isinstance(routine["_id"], dict) and "$oid" in routine["_id"] else str(routine["_id"])
+                        for routine in therapist.get("custom_routines", [])]
+
+
+        if not routine_ids:
+            raise HTTPException(status_code=404, detail="No routines found for this therapist")
+
+
+        # Fetch routines using extracted routine IDs
+        routines = list(routineCollection.find({"_id": {"$in": [ObjectId(rid) for rid in routine_ids]}}))
+
+
+        # Convert ObjectId fields to strings for JSON response
+        for routine in routines:
+            routine["_id"] = str(routine["_id"])
+
+
+            # Convert exercise IDs to string
+            for exercise in routine.get("exercises", []):
+                exercise["_id"] = str(exercise["_id"])
+                exercise_details = get_exercise_by_id(exercise["_id"])
+                exercise.update(exercise_details)
+
+
+        return routines
+
+
+    except PyMongoError as e:
+        logging.error(f"Database query failed: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

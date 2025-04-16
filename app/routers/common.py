@@ -80,10 +80,32 @@ def get_routine_by_id(routine_id: str):
     else:
         raise HTTPException(status_code=404, detail="Routine not found")
     
+# @router.post("/create_routine")
+# def create_routine(routine: dict):
+#     try:
+#         routine_id = routineCollection.insert_one(routine).inserted_id
+#         return {"message": "Routine created successfully!", "routine_id": str(routine_id)}
+#     except PyMongoError as e:
+#         raise HTTPException(status_code=500, detail="Database update failed")
+
 @router.post("/create_routine")
 def create_routine(routine: dict):
     try:
+        # Validate exercises array (if any) and ensure they are all ObjectId references
+        if "exercises" in routine:
+            for exercise in routine["exercises"]:
+                if "_id" in exercise and not isinstance(exercise["_id"], ObjectId):
+                    exercise["_id"] = ObjectId(exercise["_id"])  # Convert string IDs to ObjectId
+
+        # Insert new routine with exercises
         routine_id = routineCollection.insert_one(routine).inserted_id
+
+        # Return response with the routine ID
         return {"message": "Routine created successfully!", "routine_id": str(routine_id)}
+
     except PyMongoError as e:
-        raise HTTPException(status_code=500, detail="Database update failed")
+        print(f"Database Insertion Error: {e}")
+        raise HTTPException(status_code=500, detail="Database insertion failed")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
