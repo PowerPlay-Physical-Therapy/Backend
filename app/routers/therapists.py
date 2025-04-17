@@ -1,12 +1,36 @@
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, Body
 from app.database import get_database
 from app.models.therapists import Therapist
 from pymongo.errors import PyMongoError
+from bson import ObjectId
+from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
+from typing import Union, List
+import logging
+
+from dotenv import load_dotenv
+import os
+import boto3 
+
+load_dotenv()
 
 collection = get_database()["Therapists"]
+routineCollection = get_database()["Routines"]
+exerciseCollection = get_database()["Exercises"]
 
 router = APIRouter(prefix="/therapist", tags=["Therapists"])
 
+
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_REGION = os.getenv("AWS_REGION")
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+    region_name=S3_REGION
+)
 
 @router.post("/create_therapist", response_model=str, status_code=201)
 def create_new_therapist(user: Therapist):
@@ -77,3 +101,45 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+    
+    
+@router.post("/create_exercise")
+def create_exercise(exercises: Union[dict, List[dict]] = Body(...)):
+    try:
+        if isinstance(exercises, dict):
+            exercises = [exercises]
+
+        inserted_ids = []
+        for exercise in exercises:
+            if "_id" in exercise and exercise["_id"]:
+                exercise["_id"] = ObjectId(exercise["_id"])
+            inserted = exerciseCollection.insert_one(exercise)
+            inserted_ids.append(str(inserted.inserted_id))
+
+        if len(inserted_ids) == 1:
+            return { "_id": inserted_ids[0] }
+        return {
+            "message": f"{len(inserted_ids)} exercise(s) created successfully!",
+            "exercise_ids": inserted_ids
+        }
+
+    except PyMongoError as e:
+        print(f"Database Insertion Error: {e}")
+        raise HTTPException(status_code=500, detail="Database insertion failed")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+    
+
+@router.get("/get_custom_routines/{therapist_id}")
+def get_custom_routines(therapist_id: str):
+    therapist = collection.find_one({"_id": therapist_id})
+    if therapist:
+        routine_ids = [{"_id": str(routineID["_id"])} for routineID in therapist.get("custom_routines", [])]
+        routines = [get_routine_by_id(routine["_id"]) for routine in routine_ids]
+        for routine in routines:
+            exercise_ids = [exercise["_id"] for exercise in routine.get("exercises", [])]
+            routine["exercises"] = [get_exercise_by_id(exercise_id) for exercise_id in exercise_ids]
+        return routines
+    else:
+        raise HTTPException(status_code=404, detail="No Such Therapist")

@@ -1,13 +1,16 @@
 from collections import defaultdict
-from fastapi import HTTPException, APIRouter, Request
-from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
+from fastapi import HTTPException, APIRouter, UploadFile, status
 from pymongo.errors import PyMongoError
 from app.database import get_database
 from bson import ObjectId
+from uuid import uuid4
+from loguru import logger
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from pymongo.errors import PyMongoError
 import os
-
 from datetime import datetime, timezone
+
 
 patientCollection = get_database()["Patients"]
 therapistCollection = get_database()["Therapists"]
@@ -93,10 +96,24 @@ def get_routine_by_id(routine_id: str):
 @router.post("/create_routine")
 def create_routine(routine: dict):
     try:
+        # Validate exercises array (if any) and ensure they are all ObjectId references
+        if "exercises" in routine:
+            for exercise in routine["exercises"]:
+                if "_id" in exercise and not isinstance(exercise["_id"], ObjectId):
+                    exercise["_id"] = ObjectId(exercise["_id"])  # Convert string IDs to ObjectId
+
+        # Insert new routine with exercises
         routine_id = routineCollection.insert_one(routine).inserted_id
+
+        # Return response with the routine ID
         return {"message": "Routine created successfully!", "routine_id": str(routine_id)}
+
     except PyMongoError as e:
-        raise HTTPException(status_code=500, detail="Database update failed")
+        print(f"Database Insertion Error: {e}")
+        raise HTTPException(status_code=500, detail="Database insertion failed")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 def convert_message(doc):
@@ -272,3 +289,4 @@ def reject_connection(patient_id: str, therapist_id: str):
     except Exception as e:
         print("Error rejecting connection:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
