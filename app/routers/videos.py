@@ -2,9 +2,7 @@ from collections import defaultdict
 from fastapi import HTTPException, APIRouter, UploadFile, status
 from pymongo.errors import PyMongoError
 from app.database import get_database
-from bson import ObjectId
 from uuid import uuid4
-from loguru import logger
 import os
 import magic
 import boto3
@@ -25,7 +23,6 @@ s3 = boto3.resource('s3',
 bucket = s3.Bucket(AWS_BUCKET)
 
 async def s3_upload(contents, name):
-    logger.info(f"Uploading file to S3 bucket {AWS_BUCKET} with name {name}")
     bucket.put_object(Key=name, Body=contents)
 
 # custom videos
@@ -39,7 +36,6 @@ s3 = boto3.resource('s3',
 )
 
 async def s3_custom_vids_upload(contents, name):
-    logger.info(f"Uploading file to S3 bucket {CUSTOM_VIDS_BUCKET} with name {name}")
     bucket_2.put_object(Key=name, Body=contents)
 
 

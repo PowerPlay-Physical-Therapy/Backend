@@ -1,10 +1,9 @@
 from collections import defaultdict
-from fastapi import HTTPException, APIRouter, UploadFile, status
+from fastapi import HTTPException, APIRouter, UploadFile, status, Request
 from pymongo.errors import PyMongoError
 from app.database import get_database
 from bson import ObjectId
 from uuid import uuid4
-from loguru import logger
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from pymongo.errors import PyMongoError
