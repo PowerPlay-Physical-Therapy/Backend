@@ -135,7 +135,7 @@ def get_patient_by_email(email: str):
         patient = patientCollection.find_one({"email": email})
         if patient:
             patient["_id"] = str(patient["_id"])
-            return patient
+            return convert_object_ids_to_strings(patient)
         else:
             raise HTTPException(status_code=404, detail="Patient not found with provided email")
     except PyMongoError as e:
@@ -165,4 +165,4 @@ def update_patient_by_username(patient_username: str, user: Patient):
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-
+    

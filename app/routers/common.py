@@ -164,14 +164,6 @@ def connect_patient_therapist_bidirectional(patient_id: str, therapist_id: str, 
     try:
         print("Connecting patient:", patient_id, "to therapist:", therapist_id)
 
-        patient = patientCollection.find_one({"_id": patient_id})
-        therapist = therapistCollection.find_one({"_id": therapist_id})
-
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
-        if not therapist:
-            raise HTTPException(status_code=404, detail="Therapist not found")
-
         role = request.headers.get("X-User-Role", "patient")  # Defaults to patient
         status = "accepted" if role == "therapist" else "pending"
         print("Using role:", role, "=> status:", status)
@@ -181,6 +173,31 @@ def connect_patient_therapist_bidirectional(patient_id: str, therapist_id: str, 
             "therapist_id": therapist_id
         })
 
+        if role == "therapist":
+            patient = patientCollection.find_one({"_id": patient_id})
+            therapist = therapistCollection.find_one({"_id": therapist_id})
+
+            if not patient:
+                raise HTTPException(status_code=404, detail="Patient not found")
+            if not therapist:
+                raise HTTPException(status_code=404, detail="Therapist not found")
+
+            if therapist_id in patient.get("connections", []):
+                raise HTTPException(status_code=400, detail="Connection already exists")
+            if patient_id in therapist.get("connections", []):
+                raise HTTPException(status_code=400, detail="Connection already exists")
+            updated_item_1 = patientCollection.update_one(
+                {"_id": patient_id},
+                {"$addToSet": {"connections": therapist_id}}
+            )
+            updated_item_2 = therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$addToSet": {"connections": patient_id}}
+            )
+
+            if updated_item_1.modified_count != 1 or updated_item_2.modified_count != 1:
+                raise HTTPException(status_code=400, detail="Failed to add connection")
+        
         if existing:
             return {"message": "Connection already exists"}
 
@@ -204,6 +221,30 @@ def accept_connection(patient_id: str, therapist_id: str):
             {"patient_id": patient_id, "therapist_id": therapist_id, "status": "pending"},
             {"$set": {"status": "accepted"}}
         )
+
+        patient = patientCollection.find_one({"_id": patient_id})
+        therapist = therapistCollection.find_one({"_id": therapist_id})
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+
+        if therapist_id in patient.get("connections", []):
+            raise HTTPException(status_code=400, detail="Connection already exists")
+        if patient_id in therapist.get("connections", []):
+            raise HTTPException(status_code=400, detail="Connection already exists")
+        updated_item_1 = patientCollection.update_one(
+                {"_id": patient_id},
+                {"$addToSet": {"connections": therapist_id}}
+            )
+        updated_item_2 = therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$addToSet": {"connections": patient_id}}
+            )
+
+        if updated_item_1.modified_count != 1 or updated_item_2.modified_count != 1:
+            raise HTTPException(status_code=400, detail="Failed to add connection")
 
         if result.modified_count == 1:
             return {"message": "Connection accepted"}
@@ -259,6 +300,26 @@ def get_user_connections(user_id: str, user_type: str):
 @router.delete("/disconnect_patient_therapist/{patient_id}/{therapist_id}")
 def disconnect_patient_therapist(patient_id: str, therapist_id: str):
     try:
+        patient = patientCollection.find_one({"_id" : patient_id})
+        therapist = therapistCollection.find_one({"_id" : therapist_id})
+        if patient and therapist:
+            if therapist_id not in patient.get("connections", []):
+                raise HTTPException(status_code=400, detail="Connection does not exist")
+            if patient_id not in therapist.get("connections", []):
+                raise HTTPException(status_code=400, detail="Connection does not exist")
+            updated_item_1 = patientCollection.update_one(
+                {"_id": patient_id},
+                {"$pull": {"connections": therapist_id}}
+            )
+            updated_item_2 = therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"connections": patient_id}}
+            )
+            if updated_item_1.modified_count != 1 or updated_item_2.modified_count != 1:
+                raise HTTPException(status_code=400, detail="Failed to remove connection")
+        else:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
         result = connectionCollection.delete_one({
             "patient_id": patient_id,
             "therapist_id": therapist_id
@@ -288,4 +349,3 @@ def reject_connection(patient_id: str, therapist_id: str):
     except Exception as e:
         print("Error rejecting connection:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
-
