@@ -6,7 +6,6 @@ from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
 from typing import Union, List
 import logging
-
 from dotenv import load_dotenv
 import os
 import boto3 
@@ -31,6 +30,24 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_KEY,
     region_name=S3_REGION
 )
+
+def convert_object_ids_to_strings(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key == "_id":
+                if isinstance(value, dict) and "$oid" in value:
+                    # Convert MongoDB ObjectId to string
+                    data[key] = value["$oid"]
+                else:
+                    data[key] = str(value)  # Ensure all _id values are strings
+            else:
+                data[key] = convert_object_ids_to_strings(
+                    value)  # Recursively process other fields
+    elif isinstance(data, list):
+        # Recursively process lists
+        return [convert_object_ids_to_strings(item) for item in data]
+    return data
+
 
 @router.post("/create_therapist", response_model=str, status_code=201)
 def create_new_therapist(user: Therapist):
@@ -63,7 +80,7 @@ def get_therapist_by_id(therapist_id: str):
     if collection_response:
         therapist = collection_response
         print(f"\n\nTherapist Found: {therapist}\n\n")
-        return therapist
+        return convert_object_ids_to_strings(therapist)
     else:
         raise HTTPException(status_code=404, detail="Therapist not found")
 
@@ -73,7 +90,7 @@ def get_therapist_by_email(email: str):
         therapist = collection.find_one({"email": email})
         if therapist:
             therapist["_id"] = str(therapist["_id"])  # Convert ObjectId to string if needed
-            return therapist
+            return convert_object_ids_to_strings(therapist)
         else:
             raise HTTPException(status_code=404, detail="Therapist not found with provided email")
     except PyMongoError as e:
@@ -88,7 +105,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
         if result:
             user_dict = user.model_dump(by_alias=True, exclude=["id"])
             update_fields = {
-                "username": user_dict["username"],
+                "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
             }
             updated_item = collection.update_one(

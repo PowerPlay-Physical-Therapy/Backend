@@ -8,6 +8,8 @@ class Patient(BaseModel):
     firstname: str
     lastname: str
     email: str
+    connections: Optional[list] = []
+    assigned_routines: Optional[list] = []
     imageUrl: Optional[str] = None
 
 class Exercises(BaseModel):
