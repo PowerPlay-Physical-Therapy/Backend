@@ -163,8 +163,8 @@ def get_custom_routines(therapist_id: str):
     else:
         raise HTTPException(status_code=404, detail="No Such Therapist")
 
-@router.put("/update_custom_routines/{therapist_id}/{routine_id}")
-def update_custom_routines(therapist_id: str, routine_id: str):
+@router.put("/add_custom_routines/{therapist_id}/{routine_id}")
+def add_custom_routines(therapist_id: str, routine_id: str):
     try:
         therapist = collection.find_one({"_id": therapist_id})
 
@@ -184,4 +184,65 @@ def update_custom_routines(therapist_id: str, routine_id: str):
             raise HTTPException(status_code=404, detail="Therapist not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-    
+
+
+@router.put("/update_exercise/{exercise_id}")
+async def update_exercise(exercise_id: str, updated_data: dict = Body(...)):
+    try:
+        existing = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
+        
+        if existing:
+            updated_item = exerciseCollection.update_one(
+                {"_id": ObjectId(exercise_id)},
+                {"$set": updated_data}
+            )
+            return {"message": "Exercise updated", "matched": updated_item.matched_count}
+        else:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+@router.put("/update_routine/{routine_id}")
+async def update_routine(routine_id: str, updated_data: dict = Body(...)):
+    try:
+        existing = routineCollection.find_one({"_id": ObjectId(routine_id)})
+
+        if not existing:
+            raise HTTPException(status_code=404, detail="Routine not found")
+
+        # Only store references to valid exercises
+        if "exercises" in updated_data:
+            exercise_refs = []
+
+            for ex in updated_data["exercises"]:
+                if "_id" in ex and ex["_id"]:
+                    # Validate the exercise exists
+                    ex_id = ObjectId(ex["_id"])
+                    if not exerciseCollection.find_one({"_id": ex_id}):
+                        raise HTTPException(status_code=404, detail=f"Exercise with _id {ex_id} not found")
+                    # Just reference it
+                    exercise_refs.append({"_id": ex_id})
+                else:
+                    # Only insert new exercise
+                    inserted = exerciseCollection.insert_one(ex)
+                    exercise_refs.append({"_id": inserted.inserted_id})
+
+            updated_data["exercises"] = exercise_refs
+
+        # Remove fields not wanted to update
+        updated_data.pop("_id", None)
+
+        updated_item = routineCollection.update_one(
+            {"_id": ObjectId(routine_id)},
+            {"$set": updated_data}
+        )
+
+        return {
+            "message": "Routine updated",
+            "matched_count": updated_item.matched_count,
+            "modified_count": updated_item.modified_count
+        }
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
