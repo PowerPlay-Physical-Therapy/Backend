@@ -115,7 +115,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             if updated_item.modified_count == 1:
                 return {"message": "Therapist updated successfully!"}
             else:
-                raise HTTPException(status_code=400, detail="Failed to update item")
+                return {"message": "No changes made to the therapist"}
         else:
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
