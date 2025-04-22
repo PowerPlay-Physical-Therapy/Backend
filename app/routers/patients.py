@@ -71,6 +71,13 @@ def update_assigned_routines(patient_id: str, routine_id: str):
         patient = patientCollection.find_one({"_id": patient_id})
 
         if patient:
+            # Check if the routine already exists in assigned_routines
+            existing_routine = patientCollection.find_one(
+                {"_id": patient_id, "assigned_routines._id": ObjectId(routine_id)}
+            )
+            if existing_routine:
+                return {"message": "Routine already assigned to this patient!"}
+            
             updated_item = patientCollection.update_one(
                 {"_id": patient_id},
                 {"$addToSet": {"assigned_routines": {"_id": ObjectId(routine_id)}}}
