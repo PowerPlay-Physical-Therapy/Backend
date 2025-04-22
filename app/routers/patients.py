@@ -157,7 +157,7 @@ def update_patient_by_username(patient_username: str, user: Patient):
         if result:
             user_dict = user.model_dump(by_alias=True, exclude=["id"])
             update_fields = {
-                "username": user_dict["username"],
+                "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
             }
             updated_item = patientCollection.update_one(

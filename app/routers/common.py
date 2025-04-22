@@ -31,18 +31,18 @@ def get_explore_collection():
     def modify_exercises(exercise_list):
         transformed = defaultdict(lambda: defaultdict(list))
         for exercise in exercise_list:
-            category = exercise["category"]
-            subcategory = exercise["subcategory"]
+            category = exercise.get("category")
+            subcategory = exercise.get("subcategory")
             transformed[category][subcategory].append({
-                "_id": {"$oid": exercise["_id"]},
-                "reps": exercise["reps"],
-                "hold": exercise["hold"],
-                "sets": exercise["sets"],
-                "frequency": exercise["frequency"],
-                "description": exercise["description"],
-                "thumbnail_url": exercise["thumbnail_url"],
-                "video_url": exercise["video_url"],
-                "name": exercise["title"]
+                "_id": {"$oid": exercise.get("_id")},
+                "reps": exercise.get("reps"),
+                "hold": exercise.get("hold"),
+                "sets": exercise.get("sets"),
+                "frequency": exercise.get("frequency"),
+                "description": exercise.get("description"),
+                "thumbnail_url": exercise.get("thumbnail_url"),
+                "video_url": exercise.get("video_url"),
+                "name": exercise.get("name"),
             })
         result = []
         for category, subcategories in transformed.items():
