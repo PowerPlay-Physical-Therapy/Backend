@@ -184,7 +184,7 @@ def add_custom_routines(therapist_id: str, routine_id: str):
             raise HTTPException(status_code=404, detail="Therapist not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-
+    
 
 @router.put("/update_exercise/{exercise_id}")
 async def update_exercise(exercise_id: str, updated_data: dict = Body(...)):
@@ -245,4 +245,3 @@ async def update_routine(routine_id: str, updated_data: dict = Body(...)):
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-

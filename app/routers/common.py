@@ -349,3 +349,51 @@ def reject_connection(patient_id: str, therapist_id: str):
     except Exception as e:
         print("Error rejecting connection:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/delete_custom_routine/{therapist_id}/{routine_id}")
+def delete_custome_routine(therapist_id: str, routine_id: str):
+    try:
+        therapist = therapistCollection.find_one({"_id": therapist_id})
+        routine = routineCollection.find_one({"_id": ObjectId(routine_id)})
+        patients = patientCollection.find({
+            "assigned_routines": {
+                "$elemMatch": {"_id": ObjectId(routine_id)}
+            }
+        })
+
+        if patients:
+            for patient in patients:
+                patientCollection.update_one(
+                    {"_id": patient["_id"]},
+                    {"$pull": {"assigned_routines": {"_id": ObjectId(routine_id)}}}
+                )
+        
+        if therapist and routine:
+            updated_therapist = therapistCollection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"custom_routines": {"_id": ObjectId(routine_id)}}}
+            )
+
+            # Delete the routine from the Routines collection
+            for exercise in routine.get("exercises", []):
+                exercise_id = exercise.get("_id")
+                if exercise_id:
+                    exerciseCollection.delete_one({"_id": ObjectId(exercise_id)})
+            
+            updated_routine = routineCollection.delete_one({"_id": ObjectId(routine_id)})
+
+
+            if updated_therapist.modified_count == 1 and updated_routine.deleted_count == 1:
+                return {"message": "Custom Routine deleted successfully!"}
+            else:
+                raise HTTPException(
+                    status_code=400, detail="Failed to delete routine")
+        else:
+            # Item not found
+            raise HTTPException(status_code=404, detail="Therapist/patient not found")
+        
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
