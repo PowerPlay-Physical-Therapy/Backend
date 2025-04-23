@@ -48,7 +48,7 @@ def convert_object_ids_to_strings(data):
         return [convert_object_ids_to_strings(item) for item in data]
     return data
 
-@router.get("/get_patient/")
+@router.get("/get_patient/{patient_id}")
 def get_patient_by_id(patient_id: str):
     print("Looking for patient with ID:", patient_id)
 
@@ -136,7 +136,7 @@ def get_connections(patient_id: str):
     else:
         raise HTTPException(status_code=404, detail="No Therapist Found for this Patient")
     
-@router.get("/get_patient_by_email/")
+@router.get("/get_patient_by_email/{email}")
 def get_patient_by_email(email: str):
     try:
         patient = patientCollection.find_one({"email": email})

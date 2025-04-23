@@ -8,8 +8,12 @@ class Therapist(BaseModel):
     lastname: str
     email: str
     imageUrl: Optional[str] = None
+    favorites: Optional[list[str]] = []
 
 class ConnectionBase(BaseModel):
-    patient_id: str  # or ObjectId if you're using a custom field
+    patient_id: str
     therapist_id: str
-    status: Literal['pending', 'accepted'] = 'pending'
+    status: Optional[Literal['pending', 'accepted']] = 'pending'
+    diagnosis: Optional[str] = ""
+    notes: Optional[str] = ""
+

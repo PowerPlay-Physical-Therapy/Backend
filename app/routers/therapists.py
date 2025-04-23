@@ -1,6 +1,6 @@
 from fastapi import HTTPException, APIRouter, Body
 from app.database import get_database
-from app.models.therapists import Therapist
+from app.models.therapists import Therapist, ConnectionBase
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
@@ -15,6 +15,7 @@ load_dotenv()
 collection = get_database()["Therapists"]
 routineCollection = get_database()["Routines"]
 exerciseCollection = get_database()["Exercises"]
+connectionCollection = get_database()["Connections"]
 
 router = APIRouter(prefix="/therapist", tags=["Therapists"])
 
@@ -245,3 +246,136 @@ async def update_routine(routine_id: str, updated_data: dict = Body(...)):
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
+
+@router.get("/get_connection_details/{patient_id}/{therapist_id}")
+def get_connection_details(patient_id: str, therapist_id: str):
+    try:
+        connection = connectionCollection.find_one({
+            "patient_id": patient_id,
+            "therapist_id": therapist_id
+        })
+
+        if not connection:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        return {
+            "diagnosis": connection.get("diagnosis", ""),
+            "notes": connection.get("notes", "")
+        }
+
+    except Exception as e:
+        print("Error fetching connection details:", str(e))
+        raise HTTPException(status_code=500, detail="Error fetching connection details")
+
+@router.put("/update_connection_details/{patient_id}/{therapist_id}")
+def update_connection_details(
+    patient_id: str,
+    therapist_id: str,
+    data: dict = Body(...)
+):
+    try:
+        diagnosis = data.get("diagnosis", "")
+        notes = data.get("notes", "")
+
+        result = connectionCollection.update_one(
+            {"patient_id": patient_id, "therapist_id": therapist_id},
+            {"$set": {"diagnosis": diagnosis, "notes": notes}}
+        )
+
+        if result.modified_count == 1:
+            return {"message": "Connection details updated"}
+        else:
+            raise HTTPException(status_code=404, detail="Connection not found or no change made")
+
+    except Exception as e:
+        print("Error updating connection details:", str(e))
+        raise HTTPException(status_code=500, detail="Error updating connection details")
+
+@router.post("/add_favorite/{therapist_id}/{exercise_id}")
+def add_favorite_exercise(therapist_id: str, exercise_id: str):
+    try:
+        result = collection.update_one(
+            {"_id": therapist_id},
+            {"$addToSet": {"favorites": exercise_id}}
+        )
+        if result.modified_count == 1:
+            return {"message": "Exercise added to favorites"}
+        else:
+            raise HTTPException(status_code=400, detail="Exercise already in favorites or therapist not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+
+@router.delete("/remove_favorite/{therapist_id}/{exercise_id}")
+def remove_favorite_exercise(therapist_id: str, exercise_id: str):
+    try:
+        result = collection.update_one(
+            {"_id": therapist_id},
+            {"$pull": {"favorites": exercise_id}}
+        )
+        if result.modified_count == 1:
+            return {"message": "Exercise removed from favorites"}
+        else:
+            raise HTTPException(status_code=400, detail="Exercise not in favorites or therapist not found")
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+@router.get("/get_favorite_routines/{therapist_id}")
+def get_favorite_routines(therapist_id: str):
+    try:
+        therapist = collection.find_one({"_id": therapist_id})
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+
+        favorite_ids = [ObjectId(rid) for rid in therapist.get("favorites", []) if rid]
+        routines = list(routineCollection.find({"_id": {"$in": favorite_ids}}))
+
+        for routine in routines:
+            routine["_id"] = str(routine["_id"])
+            exercise_ids = [ex["_id"] for ex in routine.get("exercises", [])]
+            full_exercises = list(exerciseCollection.find({"_id": {"$in": exercise_ids}}))
+
+            for ex in full_exercises:
+                ex["_id"] = str(ex["_id"])
+            routine["exercises"] = full_exercises
+
+        print("Matching routine IDs:", favorite_ids)
+        print("Routines found:", [r["_id"] for r in routines])
+        return routines
+
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database query failed")
+    except Exception as e:
+        print("Error fetching favorites:", e)
+        raise HTTPException(status_code=500, detail="Unexpected error")
+
+@router.put("/toggle_favorite/{therapist_id}/{routine_id}")
+def toggle_favorite_routine(therapist_id: str, routine_id: str):
+    try:
+        therapist = collection.find_one({"_id": therapist_id})
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+
+        favorites = therapist.get("favorites", [])
+
+        if routine_id in favorites:
+            # Remove from favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"favorites": routine_id}}
+            )
+            return {"message": "Routine removed from favorites"}
+        else:
+            # Add to favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$addToSet": {"favorites": routine_id}}
+            )
+            return {"message": "Routine added to favorites"}
+
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database update failed")
+    except Exception as e:
+        print("Error toggling favorite:", str(e))
+        raise HTTPException(status_code=500, detail="Unexpected error")
