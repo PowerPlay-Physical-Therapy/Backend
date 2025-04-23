@@ -279,7 +279,7 @@ def get_user_connections(user_id: str, user_type: str):
                         "firstname": user.get("firstname", ""),
                         "lastname": user.get("lastname", ""),
                         "imageUrl": user.get("imageUrl"),
-                        "status": conn.get("status", "accepted")
+                        "status": conn.get("status", "accepted"),
                     }
                     results.append(user_info)
             except Exception as inner_e:
@@ -397,3 +397,61 @@ def delete_custome_routine(therapist_id: str, routine_id: str):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
 
+@router.delete("/delete_chat/{user1}/{user2}")
+def delete_chat(user1: str, user2: str):
+    try:
+        result = messageCollection.delete_many({
+            "$or": [
+                {"sender_id": user1, "receiver_id": user2},
+                {"sender_id": user2, "receiver_id": user1}
+            ]
+        })
+
+        if result.deleted_count > 0:
+            return {"message": "Chat deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="No chat found")
+    except Exception as e:
+        print("Error deleting chat:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/toggle_mute/{patient_id}/{therapist_id}")
+async def toggle_mute(patient_id: str, therapist_id: str):
+    try:
+        # Find the connection
+        connection = connectionCollection.find_one({
+            "patient_id": patient_id,
+            "therapist_id": therapist_id
+        })
+
+        if not connection:
+            raise HTTPException(status_code=404, detail="Connection not found")
+
+        # Get current mute status or default to False
+        current_mute_status = connection.get("is_muted", False)
+        
+        # Toggle the mute status
+        result = connectionCollection.update_one(
+            {
+                "patient_id": patient_id,
+                "therapist_id": therapist_id
+            },
+            {"$set": {"is_muted": not current_mute_status}}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update mute status")
+
+        return {
+            "message": f"Successfully {'muted' if not current_mute_status else 'unmuted'} the connection",
+            "patient_id": patient_id,
+            "therapist_id": therapist_id,
+            "is_muted": not current_mute_status
+        }
+
+    except PyMongoError as e:
+        print(f"Database Error: {e}")
+        raise HTTPException(status_code=500, detail="Database operation failed")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
