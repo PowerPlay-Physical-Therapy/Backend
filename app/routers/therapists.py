@@ -245,3 +245,59 @@ async def update_routine(routine_id: str, updated_data: dict = Body(...)):
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
+
+@router.put("/update_favorites/{therapist_id}")
+async def update_favorites(therapist_id: str, update_data: dict = Body(...)):
+    try:
+        # Validate required fields
+        if "exerciseId" not in update_data:
+            raise HTTPException(
+                status_code=400, 
+                detail="exerciseId is required"
+            )
+        
+        exercise_id = update_data["exerciseId"]
+            
+        # Check if therapist exists
+        therapist = collection.find_one({"_id": therapist_id})
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+            
+        # Check if exercise exists
+        exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
+        if not exercise:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+        
+        # Check if exercise is already in favorites
+        is_favorited = exercise_id in therapist.get("favorites", [])
+        
+        if is_favorited:
+            # Remove exercise ID from favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"favorites": exercise_id}}
+            )
+            action = "removed from"
+        else:
+            # Add exercise ID to favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$addToSet": {"favorites": exercise_id}}
+            )
+            action = "added to"
+            
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update favorites")
+                
+        return {
+            "message": f"Successfully {action} favorites",
+            "therapist_id": therapist_id,
+            "exercise_id": exercise_id,
+            "is_favorited": not is_favorited  # Return the new state
+        }
+        
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database operation failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
