@@ -115,7 +115,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             if updated_item.modified_count == 1:
                 return {"message": "Therapist updated successfully!"}
             else:
-                raise HTTPException(status_code=400, detail="Failed to update item")
+                return {"message": "No changes made to the therapist"}
         else:
             raise HTTPException(status_code=404, detail="Item not found")
     except PyMongoError as e:
@@ -184,7 +184,7 @@ def add_custom_routines(therapist_id: str, routine_id: str):
             raise HTTPException(status_code=404, detail="Therapist not found")
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-
+    
 
 @router.put("/update_exercise/{exercise_id}")
 async def update_exercise(exercise_id: str, updated_data: dict = Body(...)):
@@ -245,4 +245,3 @@ async def update_routine(routine_id: str, updated_data: dict = Body(...)):
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
-
