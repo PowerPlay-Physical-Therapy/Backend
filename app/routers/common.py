@@ -42,7 +42,7 @@ def get_explore_collection():
                 "description": exercise.get("description"),
                 "thumbnail_url": exercise.get("thumbnail_url"),
                 "video_url": exercise.get("video_url"),
-                "name": exercise.get("name"),
+                "name": exercise.get("title"),
             })
         result = []
         for category, subcategories in transformed.items():
