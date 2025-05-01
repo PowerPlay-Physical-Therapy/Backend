@@ -11,6 +11,7 @@ class Patient(BaseModel):
     connections: Optional[list] = []
     assigned_routines: Optional[list] = []
     imageUrl: Optional[str] = None
+    streak: Optional[int] = 0
 
 class Exercises(BaseModel):
     id: str
