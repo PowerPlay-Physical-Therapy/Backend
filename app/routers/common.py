@@ -280,6 +280,7 @@ def get_user_connections(user_id: str, user_type: str):
                         "lastname": user.get("lastname", ""),
                         "imageUrl": user.get("imageUrl"),
                         "status": conn.get("status", "accepted"),
+                        "expoPushToken": user.get("expoPushToken", ""),
                     }
                     results.append(user_info)
             except Exception as inner_e:
