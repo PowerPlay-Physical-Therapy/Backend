@@ -4,8 +4,10 @@ from app.models.patients import Patient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
+from datetime import datetime
 
 patientCollection = get_database()["Patients"]
+completionCollection = get_database()["PatientHistory"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
 
@@ -173,3 +175,90 @@ def update_patient_by_username(patient_username: str, user: Patient):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
     
+def validate_log(user_id: str):
+    if not completionCollection.find_one({"_id": user_id}):
+        completionCollection.insert_one({
+            "_id": user_id,
+            "completed_routines": [],
+            "completed_exercises": []
+        })
+
+@router.put("/complete_routine/{user_id}/{routine_id}")
+def mark_routine_complete(user_id: str, routine_id: str, name: str = ""):
+    try:
+        validate_log(user_id)
+        routine_entry = {
+            "_id": routine_id,
+            "name": name,
+            "date": datetime.utcnow().isoformat()
+        }
+        completionCollection.update_one(
+            {"_id": user_id},
+            {"$addToSet": {"completed_routines": routine_entry}}
+        )
+        return {"message": "Routine marked as completed."}
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/complete_exercise/{user_id}/{exercise_id}")
+def mark_exercise_complete(user_id: str, exercise_id: str, title: str = ""):
+    try:
+        validate_log(user_id)
+        exercise_entry = {
+            "_id": exercise_id,
+            "title": title,
+            "date": datetime.utcnow().isoformat()
+        }
+        completionCollection.update_one(
+            {"_id": user_id},
+            {"$addToSet": {"completed_exercises": exercise_entry}}
+        )
+        return {"message": "Exercise marked as completed."}
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/get_completed_exercises/{patient_id}")
+def get_completed_exercises(patient_id: str):
+    try:
+        logs = list(logCollection.find({
+            "user_id": patient_id,
+            "type": "exercise"
+        }))
+        completed = []
+        for log in logs:
+            exercise = exerciseCollection.find_one({"_id": ObjectId(log["item_id"])})
+            if exercise:
+                exercise["_id"] = str(exercise["_id"])
+                completed.append({
+                    "date": log.get("date"),
+                    "title": exercise.get("title"),
+                    "category": exercise.get("category"),
+                    "subcategory": exercise.get("subcategory")
+                })
+        return completed
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+@router.get("/get_completed_routines/{patient_id}")
+def get_completed_routines(patient_id: str):
+    try:
+        logs = list(logCollection.find({
+            "user_id": patient_id,
+            "type": "routine"
+        }))
+        completed = []
+        for log in logs:
+            routine = routineCollection.find_one({"_id": ObjectId(log["item_id"])})
+            if routine:
+                routine["_id"] = str(routine["_id"])
+                completed.append({
+                    "date": log.get("date"),
+                    "name": routine.get("name"),
+                })
+        return completed
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")

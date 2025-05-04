@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List 
 
 
 class Patient(BaseModel):
@@ -29,3 +29,18 @@ class Routines(BaseModel):
     id: str
     name: str
     imageurl: str
+
+class CompletedExercise(BaseModel):
+    _id: str
+    title: str
+    date: str
+
+class CompletedRoutine(BaseModel):
+    _id: str
+    name: str
+    date: str
+
+class CompletionLog(BaseModel):
+    id: str = Field(..., alias="_id")
+    completed_exercises: Optional[List[CompletedExercise]] = []
+    completed_routines: Optional[List[CompletedRoutine]] = []
