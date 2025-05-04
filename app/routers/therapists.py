@@ -322,32 +322,6 @@ def get_connection_details(patient_id: str, therapist_id: str):
     except Exception as e:
         print("Error fetching connection details:", str(e))
         raise HTTPException(status_code=500, detail="Error fetching connection details")
-
-
-@router.get("/get_all_connections/{therapist_id}")
-def get_all_connections(therapist_id: str):
-    try:
-        connections = connectionCollection.find({
-            "therapist_id": therapist_id
-        })
-
-        if not connections:
-            raise HTTPException(status_code=404, detail="Connection not found")
-        
-        connections = list(connections)
-        print("Connections:", connections)
-        patients = []
-        patient_collection = get_database()["Patients"]
-        
-        for connection in connections:
-            patient_id = connection["patient_id"]
-            patient = patient_collection.find_one({"_id": patient_id})
-            patients.append(patient)
-
-        return convert_object_ids_to_strings(patients)
-    except Exception as e:
-        print("Error fetching connection details:", str(e))
-        raise HTTPException(status_code=500, detail="Error fetching connection details")
     
 
 @router.put("/update_connection_details/{patient_id}/{therapist_id}")
