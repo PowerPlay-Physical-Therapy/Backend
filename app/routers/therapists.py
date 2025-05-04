@@ -5,7 +5,6 @@ from exponent_server_sdk import (
     PushServerError,
     PushTicketError,
 )
-
 import rollbar
 import requests
 from requests.exceptions import ConnectionError, HTTPError
