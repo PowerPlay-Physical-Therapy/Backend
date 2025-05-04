@@ -160,6 +160,7 @@ def update_patient_by_username(patient_username: str, user: Patient):
                 "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
                 "streak": user_dict.get("streak"),
+                "expoPushToken" : user_dict.get("expoPushToken"),
             }
             updated_item = patientCollection.update_one(
                 {"username": patient_username},

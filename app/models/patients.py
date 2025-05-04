@@ -12,6 +12,7 @@ class Patient(BaseModel):
     assigned_routines: Optional[list] = []
     imageUrl: Optional[str] = None
     streak: Optional[int] = 0
+    expoPushToken: Optional[str] = None
 
 class Exercises(BaseModel):
     id: str
