@@ -5,6 +5,7 @@ from pymongo.errors import PyMongoError
 from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
 from datetime import datetime
+import random
 
 patientCollection = get_database()["Patients"]
 completionCollection = get_database()["PatientHistory"]
@@ -262,3 +263,7 @@ def get_completed_routines(patient_id: str):
         return completed
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database query failed")
+
+@router.get("/get_progress/{patient_id}")
+def get_progress(patient_id: str):
+    return {"patient_id": patient_id, "progress": random.randint(0, 100)}
