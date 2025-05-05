@@ -470,7 +470,7 @@ def get_patient_history(patient_id: str):
         print("Error getting patient history:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.get("/get_grpah_data/{patient_id}")
+@router.get("/get_graph_data/{patient_id}")
 def get_graph_data(patient_id: str):
     try:
         # Get the basic history document
