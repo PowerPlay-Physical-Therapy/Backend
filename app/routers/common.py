@@ -279,6 +279,7 @@ def get_user_connections(user_id: str, user_type: str):
                         "firstname": user.get("firstname", ""),
                         "lastname": user.get("lastname", ""),
                         "imageUrl": user.get("imageUrl"),
+                        "expoPushToken": user.get("expoPushToken"),
                         "status": conn.get("status", "accepted"),
                     }
                     results.append(user_info)
