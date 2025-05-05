@@ -9,6 +9,7 @@ import random
 
 patientCollection = get_database()["Patients"]
 completionCollection = get_database()["PatientHistory"]
+exerciseCollection = get_database()["Exercises"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
 
@@ -225,7 +226,7 @@ def mark_exercise_complete(user_id: str, exercise_id: str, title: str = ""):
 @router.get("/get_completed_exercises/{patient_id}")
 def get_completed_exercises(patient_id: str):
     try:
-        logs = list(logCollection.find({
+        logs = list(completionCollection.find({
             "user_id": patient_id,
             "type": "exercise"
         }))
@@ -247,7 +248,7 @@ def get_completed_exercises(patient_id: str):
 @router.get("/get_completed_routines/{patient_id}")
 def get_completed_routines(patient_id: str):
     try:
-        logs = list(logCollection.find({
+        logs = list(completionCollection.find({
             "user_id": patient_id,
             "type": "routine"
         }))
