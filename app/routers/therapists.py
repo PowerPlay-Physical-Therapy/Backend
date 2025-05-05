@@ -333,6 +333,7 @@ def get_connection_details(patient_id: str, therapist_id: str):
     except Exception as e:
         print("Error fetching connection details:", str(e))
         raise HTTPException(status_code=500, detail="Error fetching connection details")
+    
 
 @router.put("/update_connection_details/{patient_id}/{therapist_id}")
 def update_connection_details(

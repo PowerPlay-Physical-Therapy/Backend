@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from pymongo.errors import PyMongoError
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 patientCollection = get_database()["Patients"]
@@ -18,6 +18,7 @@ routineCollection = get_database()["Routines"]
 messageCollection = get_database()["Messages"]
 connectionCollection = get_database()["Connections"]
 completionCollection = get_database()["Patient_History"]
+patientHistoryCollection = get_database()["Patient_History"]
 
 router = APIRouter(tags=["Common"])
 
@@ -282,6 +283,7 @@ def get_user_connections(user_id: str, user_type: str):
                         "imageUrl": user.get("imageUrl"),
                         "expoPushToken": user.get("expoPushToken"),
                         "status": conn.get("status", "accepted"),
+                        "expoPushToken": user.get("expoPushToken", ""),
                     }
                     results.append(user_info)
             except Exception as inner_e:
@@ -456,4 +458,85 @@ async def toggle_mute(patient_id: str, therapist_id: str):
         raise HTTPException(status_code=500, detail="Database operation failed")
     except Exception as e:
         print(f"Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/get_patient_history/{patient_id}")
+def get_patient_history(patient_id: str):
+    try:
+        history = patientHistoryCollection.find_one({"_id": patient_id})
+        if history:
+            history["_id"] = str(history["_id"])
+            return history
+        else:
+            raise HTTPException(status_code=404, detail="Patient history not found")
+    except Exception as e:
+        print("Error getting patient history:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/get_graph_data/{patient_id}")
+def get_graph_data(patient_id: str):
+    try:
+        # Get the basic history document
+        history = patientHistoryCollection.find_one({"_id": patient_id})
+        if not history:
+            raise HTTPException(status_code=404, detail="Patient history not found")
+
+        # Calculate date 7 days ago
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        seven_days_ago_str = seven_days_ago.strftime("%Y-%m-%d")
+
+        # Create aggregation pipeline for routines
+        routines_pipeline = [
+            {"$match": {"_id": patient_id}},
+            {"$unwind": "$completed_routines"},
+            {"$match": {"completed_routines.date": {"$gte": seven_days_ago_str}}},
+            {"$group": {
+                "_id": "$completed_routines.date",
+                "count": {"$sum": 1}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+
+        # Create aggregation pipeline for exercises
+        exercises_pipeline = [
+            {"$match": {"_id": patient_id}},
+            {"$unwind": "$completed_exercises"},
+            {"$match": {"completed_exercises.date": {"$gte": seven_days_ago_str}}},
+            {"$group": {
+                "_id": "$completed_exercises.date",
+                "count": {"$sum": 1}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+
+        # Execute aggregations
+        routines_by_day = list(patientHistoryCollection.aggregate(routines_pipeline))
+        exercises_by_day = list(patientHistoryCollection.aggregate(exercises_pipeline))
+
+        # Convert to dictionary format for easier access
+        routines_dict = {item["_id"]: item["count"] for item in routines_by_day}
+        exercises_dict = {item["_id"]: item["count"] for item in exercises_by_day}
+
+        # Generate dates for the last 7 days
+        dates = [(datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+        dates.reverse()
+
+        # Create the final response
+        response = {
+            "last_7_days": [
+                {
+                    "date": date,
+                    "routines_count": routines_dict.get(date, 0),
+                    "exercises_count": exercises_dict.get(date, 0)
+                }
+                for date in dates
+            ],
+            "total_routines": len(history.get("completed_routines", [])),
+            "total_exercises": len(history.get("completed_exercises", []))
+        }
+
+        return response
+
+    except Exception as e:
+        print("Error getting patient history:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
