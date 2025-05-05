@@ -1,3 +1,13 @@
+from exponent_server_sdk import (
+    DeviceNotRegisteredError,
+    PushClient,
+    PushMessage,
+    PushServerError,
+    PushTicketError,
+)
+import rollbar
+import requests
+from requests.exceptions import ConnectionError, HTTPError
 from fastapi import HTTPException, APIRouter, Body
 from app.database import get_database
 from app.models.therapists import Therapist, ConnectionBase
@@ -108,6 +118,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             update_fields = {
                 "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
+                "expoPushToken": user_dict.get("expoPushToken"),
             }
             updated_item = collection.update_one(
                 {"username": therapist_username},
@@ -247,6 +258,61 @@ async def update_routine(routine_id: str, updated_data: dict = Body(...)):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
 
+@router.put("/update_favorites/{therapist_id}")
+async def update_favorites(therapist_id: str, update_data: dict = Body(...)):
+    try:
+        # Validate required fields
+        if "exerciseId" not in update_data:
+            raise HTTPException(
+                status_code=400, 
+                detail="exerciseId is required"
+            )
+        
+        exercise_id = update_data["exerciseId"]
+            
+        # Check if therapist exists
+        therapist = collection.find_one({"_id": therapist_id})
+        if not therapist:
+            raise HTTPException(status_code=404, detail="Therapist not found")
+            
+        # Check if exercise exists
+        exercise = exerciseCollection.find_one({"_id": ObjectId(exercise_id)})
+        if not exercise:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+        
+        # Check if exercise is already in favorites
+        is_favorited = exercise_id in therapist.get("favorites", [])
+        
+        if is_favorited:
+            # Remove exercise ID from favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$pull": {"favorites": exercise_id}}
+            )
+            action = "removed from"
+        else:
+            # Add exercise ID to favorites
+            result = collection.update_one(
+                {"_id": therapist_id},
+                {"$addToSet": {"favorites": exercise_id}}
+            )
+            action = "added to"
+            
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update favorites")
+                
+        return {
+            "message": f"Successfully {action} favorites",
+            "therapist_id": therapist_id,
+            "exercise_id": exercise_id,
+            "is_favorited": not is_favorited  # Return the new state
+        }
+        
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database operation failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/get_connection_details/{patient_id}/{therapist_id}")
 def get_connection_details(patient_id: str, therapist_id: str):
@@ -379,3 +445,58 @@ def toggle_favorite_routine(therapist_id: str, routine_id: str):
     except Exception as e:
         print("Error toggling favorite:", str(e))
         raise HTTPException(status_code=500, detail="Unexpected error")
+    
+
+ROLLBAR_ACCESS_TOKEN = os.getenv("ROLLBAR_ACCESS_TOKEN")  # Store the token in an environment variable
+rollbar.init(
+  access_token=ROLLBAR_ACCESS_TOKEN,
+  environment='testenv',
+  code_version='1.0'
+)
+rollbar.report_message('Rollbar is configured correctly', 'info')
+
+@router.post("/send_push_message/{token}")
+def send_push_message(token: str, message: str, extra=None):
+    try:
+        response = PushClient().publish(
+            PushMessage(to=token,
+                        body=message,
+                        data=extra))
+        
+    except PushServerError as exc:
+        # Encountered some likely formatting/validation error.
+        rollbar.report_exc_info(
+            extra_data={
+                'token': token,
+                'message': message,
+                'extra': extra,
+                'errors': exc.errors,
+                'response_data': exc.response_data,
+            })
+        raise
+    except (ConnectionError, HTTPError) as exc:
+        # Encountered some Connection or HTTP error - retry a few times in
+        # case it is transient.
+        rollbar.report_exc_info(
+            extra_data={'token': token, 'message': message, 'extra': extra})
+        raise self.retry(exc=exc)
+
+    try:
+        # We got a response back, but we don't know whether it's an error yet.
+        # This call raises errors so we can handle them with normal exception
+        # flows.
+        response.validate_response()
+    except DeviceNotRegisteredError:
+        # Mark the push token as inactive
+        from notifications.models import PushToken
+        PushToken.objects.filter(token=token).update(active=False)
+    except PushTicketError as exc:
+        # Encountered some other per-notification error.
+        rollbar.report_exc_info(
+            extra_data={
+                'token': token,
+                'message': message,
+                'extra': extra,
+                'push_response': exc.push_response._asdict(),
+            })
+        raise self.retry(exc=exc)
