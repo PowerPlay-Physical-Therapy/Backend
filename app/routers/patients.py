@@ -230,13 +230,13 @@ def mark_exercise_complete(user_id: str, exercise_id: str, title: str = ""):
 @router.get("/get_completed_exercises/{patient_id}")
 def get_completed_exercises(patient_id: str):
     try:
-        logs = list(completionCollection.find({
-            "user_id": patient_id,
-            "type": "exercise"
-        }))
+        patient = completionCollection.find_one({
+            "_id": patient_id,
+        })
+        logs = list(patient.get("completed_exercises", []))
         completed = []
         for log in logs:
-            exercise = exerciseCollection.find_one({"_id": ObjectId(log["item_id"])})
+            exercise = exerciseCollection.find_one({"_id": ObjectId(log["_id"])})
             if exercise:
                 exercise["_id"] = str(exercise["_id"])
                 completed.append({
@@ -252,13 +252,13 @@ def get_completed_exercises(patient_id: str):
 @router.get("/get_completed_routines/{patient_id}")
 def get_completed_routines(patient_id: str):
     try:
-        logs = list(completionCollection.find({
-            "user_id": patient_id,
-            "type": "routine"
-        }))
+        patient = completionCollection.find_one({
+            "_id": patient_id,
+        })
+        logs = list(patient.get("completed_routines", []))
         completed = []
         for log in logs:
-            routine = routineCollection.find_one({"_id": ObjectId(log["item_id"])})
+            routine = routineCollection.find_one({"_id": ObjectId(log["_id"])})
             if routine:
                 routine["_id"] = str(routine["_id"])
                 completed.append({
