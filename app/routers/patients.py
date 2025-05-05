@@ -159,6 +159,8 @@ def update_patient_by_username(patient_username: str, user: Patient):
             update_fields = {
                 "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
+                "streak": user_dict.get("streak"),
+                "expoPushToken" : user_dict.get("expoPushToken"),
             }
             updated_item = patientCollection.update_one(
                 {"username": patient_username},
@@ -173,3 +175,14 @@ def update_patient_by_username(patient_username: str, user: Patient):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
     
+@router.get("/get_all_patients")
+def get_all_patients():
+    try:
+        patients = list(patientCollection.find())
+        for patient in patients:
+            patient["_id"] = str(patient["_id"])
+        return convert_object_ids_to_strings(patients)
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")

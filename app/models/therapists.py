@@ -9,6 +9,7 @@ class Therapist(BaseModel):
     email: str
     imageUrl: Optional[str] = None
     favorites: Optional[list[str]] = []
+    expoPushToken: Optional[str] = None
 
 class ConnectionBase(BaseModel):
     patient_id: str

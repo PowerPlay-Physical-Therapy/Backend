@@ -1,3 +1,13 @@
+from exponent_server_sdk import (
+    DeviceNotRegisteredError,
+    PushClient,
+    PushMessage,
+    PushServerError,
+    PushTicketError,
+)
+import rollbar
+import requests
+from requests.exceptions import ConnectionError, HTTPError
 from fastapi import HTTPException, APIRouter, Body
 from app.database import get_database
 from app.models.therapists import Therapist, ConnectionBase
@@ -108,6 +118,7 @@ def update_therapist_by_username(therapist_username: str, user: Therapist):
             update_fields = {
                 "username": user_dict.get("username"),
                 "imageUrl": user_dict.get("imageUrl"),
+                "expoPushToken": user_dict.get("expoPushToken"),
             }
             updated_item = collection.update_one(
                 {"username": therapist_username},
@@ -434,3 +445,58 @@ def toggle_favorite_routine(therapist_id: str, routine_id: str):
     except Exception as e:
         print("Error toggling favorite:", str(e))
         raise HTTPException(status_code=500, detail="Unexpected error")
+    
+
+ROLLBAR_ACCESS_TOKEN = os.getenv("ROLLBAR_ACCESS_TOKEN")  # Store the token in an environment variable
+rollbar.init(
+  access_token=ROLLBAR_ACCESS_TOKEN,
+  environment='testenv',
+  code_version='1.0'
+)
+rollbar.report_message('Rollbar is configured correctly', 'info')
+
+@router.post("/send_push_message/{token}")
+def send_push_message(token: str, message: str, extra=None):
+    try:
+        response = PushClient().publish(
+            PushMessage(to=token,
+                        body=message,
+                        data=extra))
+        
+    except PushServerError as exc:
+        # Encountered some likely formatting/validation error.
+        rollbar.report_exc_info(
+            extra_data={
+                'token': token,
+                'message': message,
+                'extra': extra,
+                'errors': exc.errors,
+                'response_data': exc.response_data,
+            })
+        raise
+    except (ConnectionError, HTTPError) as exc:
+        # Encountered some Connection or HTTP error - retry a few times in
+        # case it is transient.
+        rollbar.report_exc_info(
+            extra_data={'token': token, 'message': message, 'extra': extra})
+        raise self.retry(exc=exc)
+
+    try:
+        # We got a response back, but we don't know whether it's an error yet.
+        # This call raises errors so we can handle them with normal exception
+        # flows.
+        response.validate_response()
+    except DeviceNotRegisteredError:
+        # Mark the push token as inactive
+        from notifications.models import PushToken
+        PushToken.objects.filter(token=token).update(active=False)
+    except PushTicketError as exc:
+        # Encountered some other per-notification error.
+        rollbar.report_exc_info(
+            extra_data={
+                'token': token,
+                'message': message,
+                'extra': extra,
+                'push_response': exc.push_response._asdict(),
+            })
+        raise self.retry(exc=exc)
