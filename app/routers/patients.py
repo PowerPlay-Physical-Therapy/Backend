@@ -4,8 +4,13 @@ from app.models.patients import Patient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
+from datetime import datetime, timedelta
+import random
 
 patientCollection = get_database()["Patients"]
+completionCollection = get_database()["Patient_History"]
+exerciseCollection = get_database()["Exercises"]
+routineCollection = get_database()["Routines"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
 
@@ -175,6 +180,150 @@ def update_patient_by_username(patient_username: str, user: Patient):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail="Database update failed")
     
+
+def validate_log(user_id: str):
+    if not completionCollection.find_one({"_id": user_id}):
+        completionCollection.insert_one({
+            "_id": user_id,
+            "completed_routines": [],
+            "completed_exercises": []
+        })
+
+@router.put("/complete_routine/{user_id}/{routine_id}")
+def mark_routine_complete(user_id: str, routine_id: str, name: str = ""):
+    try:
+        validate_log(user_id)
+        routine_entry = {
+            "_id": routine_id,
+            "name": name,
+            "date": datetime.utcnow().isoformat()
+        }
+        completionCollection.update_one(
+            {"_id": user_id},
+            {"$addToSet": {"completed_routines": routine_entry}}
+        )
+        return {"message": "Routine marked as completed."}
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/complete_exercise/{user_id}/{exercise_id}")
+def mark_exercise_complete(user_id: str, exercise_id: str, title: str = ""):
+    try:
+        validate_log(user_id)
+        exercise_entry = {
+            "_id": exercise_id,
+            "title": title,
+            "date": datetime.utcnow().isoformat()
+        }
+        completionCollection.update_one(
+            {"_id": user_id},
+            {"$addToSet": {"completed_exercises": exercise_entry}}
+        )
+        return {"message": "Exercise marked as completed."}
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/get_completed_exercises/{patient_id}")
+def get_completed_exercises(patient_id: str):
+    try:
+        logs = list(completionCollection.find({
+            "user_id": patient_id,
+            "type": "exercise"
+        }))
+        completed = []
+        for log in logs:
+            exercise = exerciseCollection.find_one({"_id": ObjectId(log["item_id"])})
+            if exercise:
+                exercise["_id"] = str(exercise["_id"])
+                completed.append({
+                    "date": log.get("date"),
+                    "title": exercise.get("title"),
+                    "category": exercise.get("category"),
+                    "subcategory": exercise.get("subcategory")
+                })
+        return completed
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+@router.get("/get_completed_routines/{patient_id}")
+def get_completed_routines(patient_id: str):
+    try:
+        logs = list(completionCollection.find({
+            "user_id": patient_id,
+            "type": "routine"
+        }))
+        completed = []
+        for log in logs:
+            routine = routineCollection.find_one({"_id": ObjectId(log["item_id"])})
+            if routine:
+                routine["_id"] = str(routine["_id"])
+                completed.append({
+                    "date": log.get("date"),
+                    "name": routine.get("name"),
+                })
+        return completed
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+@router.get("/get_progress/{patient_id}")
+def get_progress(patient_id: str):
+    try:
+        patient = patientCollection.find_one({"_id": patient_id})
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        assigned_routines = patient.get("assigned_routines", [])
+        if not assigned_routines:
+            return {"patient_id": patient_id, "progress": 0}
+
+        # Get start and end of current Sunday–Saturday week
+        today = datetime.utcnow()
+        weekday = today.weekday()
+        sunday_offset = (weekday + 1) % 7
+        start_of_week = (today - timedelta(days=sunday_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+        # Calculate expected completions
+        total_expected = 0
+        assigned_exercise_ids = set()
+
+        for r in assigned_routines:
+            routine = routineCollection.find_one({"_id": ObjectId(r["_id"])})
+            if not routine:
+                continue
+            for ex_ref in routine.get("exercises", []):
+                exercise = exerciseCollection.find_one({"_id": ex_ref["_id"]})
+                if not exercise:
+                    continue
+                assigned_exercise_ids.add(str(exercise["_id"]))
+                total_expected += int(exercise.get("frequency", 0))
+
+        if total_expected == 0:
+            return {"patient_id": patient_id, "progress": 0}
+
+        # Get completed exercises this week
+        log_entry = completionCollection.find_one({"_id": patient_id})
+        completed_exercises = log_entry.get("completed_exercises", []) if log_entry else []
+
+        completed_this_week = [
+            e for e in completed_exercises
+            if e["_id"] in assigned_exercise_ids and start_of_week <= datetime.fromisoformat(e["date"]) <= end_of_week
+        ]
+
+        progress = min(int((len(completed_this_week) / total_expected) * 100), 100)
+        return {"patient_id": patient_id, "progress": progress}
+
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        print("Unexpected error calculating progress:", str(e))
+        raise HTTPException(status_code=500, detail="Unexpected error")
+
+
 @router.get("/get_all_patients")
 def get_all_patients():
     try:
@@ -186,3 +335,4 @@ def get_all_patients():
         raise HTTPException(status_code=500, detail="Database query failed")
     except Exception as e:
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
+

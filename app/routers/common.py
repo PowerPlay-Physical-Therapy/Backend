@@ -17,7 +17,9 @@ exerciseCollection = get_database()["Exercises"]
 routineCollection = get_database()["Routines"]
 messageCollection = get_database()["Messages"]
 connectionCollection = get_database()["Connections"]
+completionCollection = get_database()["Patient_History"]
 patientHistoryCollection = get_database()["Patient_History"]
+
 router = APIRouter(tags=["Common"])
 
 @router.get("/get_explore_collection")
