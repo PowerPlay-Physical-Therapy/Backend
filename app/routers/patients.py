@@ -4,12 +4,13 @@ from app.models.patients import Patient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 from app.routers.common import get_routine_by_id, get_exercise_by_id, create_routine
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 
 patientCollection = get_database()["Patients"]
-completionCollection = get_database()["PatientHistory"]
+completionCollection = get_database()["Patient_History"]
 exerciseCollection = get_database()["Exercises"]
+routineCollection = get_database()["Routines"]
 
 router = APIRouter(prefix="/patient", tags=["Patients"])
 
