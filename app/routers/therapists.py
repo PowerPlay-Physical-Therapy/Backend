@@ -446,23 +446,23 @@ def toggle_favorite_routine(therapist_id: str, routine_id: str):
         print("Error toggling favorite:", str(e))
         raise HTTPException(status_code=500, detail="Unexpected error")
     
-session = requests.Session()
-session.headers.update(
-    {
-        "Authorization": f"Bearer {os.getenv('EXPO_TOKEN')}",
-        "accept": "application/json",
-        "accept-encoding": "gzip, deflate",
-        "content-type": "application/json",
-    }
+
+ROLLBAR_ACCESS_TOKEN = os.getenv("ROLLBAR_ACCESS_TOKEN")  # Store the token in an environment variable
+rollbar.init(
+  access_token=ROLLBAR_ACCESS_TOKEN,
+  environment='testenv',
+  code_version='1.0'
 )
+rollbar.report_message('Rollbar is configured correctly', 'info')
 
 @router.post("/send_push_message/{token}")
-def send_push_message(token, message, extra=None):
+def send_push_message(token: str, message: str, extra=None):
     try:
-        response = PushClient(session=session).publish(
+        response = PushClient().publish(
             PushMessage(to=token,
                         body=message,
                         data=extra))
+        
     except PushServerError as exc:
         # Encountered some likely formatting/validation error.
         rollbar.report_exc_info(
