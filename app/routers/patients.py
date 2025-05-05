@@ -266,4 +266,54 @@ def get_completed_routines(patient_id: str):
 
 @router.get("/get_progress/{patient_id}")
 def get_progress(patient_id: str):
-    return {"patient_id": patient_id, "progress": random.randint(0, 100)}
+    try:
+        patient = patientCollection.find_one({"_id": patient_id})
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        assigned_routines = patient.get("assigned_routines", [])
+        if not assigned_routines:
+            return {"patient_id": patient_id, "progress": 0}
+
+        # Get start and end of current Sunday–Saturday week
+        today = datetime.utcnow()
+        weekday = today.weekday()
+        sunday_offset = (weekday + 1) % 7
+        start_of_week = (today - timedelta(days=sunday_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+        # Calculate expected completions
+        total_expected = 0
+        assigned_exercise_ids = set()
+
+        for r in assigned_routines:
+            routine = routineCollection.find_one({"_id": ObjectId(r["_id"])})
+            if not routine:
+                continue
+            for ex_ref in routine.get("exercises", []):
+                exercise = exerciseCollection.find_one({"_id": ex_ref["_id"]})
+                if not exercise:
+                    continue
+                assigned_exercise_ids.add(str(exercise["_id"]))
+                total_expected += int(exercise.get("frequency", 0))
+
+        if total_expected == 0:
+            return {"patient_id": patient_id, "progress": 0}
+
+        # Get completed exercises this week
+        log_entry = completionCollection.find_one({"_id": patient_id})
+        completed_exercises = log_entry.get("completed_exercises", []) if log_entry else []
+
+        completed_this_week = [
+            e for e in completed_exercises
+            if e["_id"] in assigned_exercise_ids and start_of_week <= datetime.fromisoformat(e["date"]) <= end_of_week
+        ]
+
+        progress = min(int((len(completed_this_week) / total_expected) * 100), 100)
+        return {"patient_id": patient_id, "progress": progress}
+
+    except PyMongoError:
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        print("Unexpected error calculating progress:", str(e))
+        raise HTTPException(status_code=500, detail="Unexpected error")
